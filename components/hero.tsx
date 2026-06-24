@@ -1,44 +1,36 @@
-import { NextLogo } from "./next-logo";
-import { SupabaseLogo } from "./supabase-logo";
-
-export function Hero() {
+export default function Hero() {
   return (
-    <div className="flex flex-col gap-16 items-center">
-      <div className="flex gap-8 justify-center items-center">
-        <a
-          href="https://supabase.com/?utm_source=create-next-app&utm_medium=template&utm_term=nextjs"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <SupabaseLogo />
-        </a>
-        <span className="border-l rotate-45 h-6" />
-        <a href="https://nextjs.org/" target="_blank" rel="noreferrer">
-          <NextLogo />
-        </a>
+    <section className="mb-10 rounded-3xl bg-blue-600 px-6 py-10 text-white shadow-sm">
+      <div className="max-w-3xl">
+        <p className="mb-3 text-sm font-medium text-blue-100">
+          Website Direktori UMKM Kelurahan
+        </p>
+
+        <h1 className="text-3xl font-bold leading-tight md:text-5xl">
+          Temukan UMKM Lokal dengan Lebih Mudah
+        </h1>
+
+        <p className="mt-4 text-base leading-7 text-blue-100 md:text-lg">
+          SI PESAT membantu masyarakat menemukan informasi UMKM berdasarkan
+          nama usaha, kategori, kontak, dan lokasi Google Maps.
+        </p>
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <a
+            href="#daftar-umkm"
+            className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-blue-700"
+          >
+            Lihat Daftar UMKM
+          </a>
+
+          <a
+            href="#tentang"
+            className="rounded-xl border border-blue-200 px-5 py-3 text-sm font-semibold text-white"
+          >
+            Tentang SI PESAT
+          </a>
+        </div>
       </div>
-      <h1 className="sr-only">Supabase and Next.js Starter Template</h1>
-      <p className="text-3xl lg:text-4xl !leading-tight mx-auto max-w-xl text-center">
-        The fastest way to build apps with{" "}
-        <a
-          href="https://supabase.com/?utm_source=create-next-app&utm_medium=template&utm_term=nextjs"
-          target="_blank"
-          className="font-bold hover:underline"
-          rel="noreferrer"
-        >
-          Supabase
-        </a>{" "}
-        and{" "}
-        <a
-          href="https://nextjs.org/"
-          target="_blank"
-          className="font-bold hover:underline"
-          rel="noreferrer"
-        >
-          Next.js
-        </a>
-      </p>
-      <div className="w-full p-[1px] bg-gradient-to-r from-transparent via-foreground/10 to-transparent my-8" />
-    </div>
+    </section>
   );
 }
