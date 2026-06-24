@@ -5,37 +5,62 @@ import Hero from "@/components/hero";
 import AboutSection from "@/components/AboutSection";
 import Footer from "@/components/footer";
 
+function slugify(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
 export default async function Home() {
-  const { data: umkm, error } = await supabase
-    .from("umkm")
+  const { data, error } = await supabase
+    .from("data 2025")
     .select(`
       id,
-      business_name,
-      slug,
-      phone,
-      short_address,
-      description,
-      featured_product,
-      opening_hours,
-      gmaps_url,
-      status,
-      category_id,
-      categories (
-        id,
-        name,
-        slug
-      )
+      nama_usaha,
+      alamat,
+      deskripsi,
+      sektor,
+      latitude,
+      longitude,
+      rt_rw
     `)
-    .order("created_at", { ascending: false });
+    .order("id", { ascending: true });
+
+  const umkm =
+    data?.map((item: any) => ({
+      id: item.id,
+      business_name: item.nama_usaha,
+      slug: String(item.id),
+      phone: null,
+      short_address: item.alamat,
+      address: item.alamat,
+      description: item.deskripsi,
+      featured_product: item.deskripsi,
+      opening_hours: "-",
+      gmaps_url:
+        item.latitude && item.longitude
+          ? `https://www.google.com/maps/search/?api=1&query=${item.latitude},${item.longitude}`
+          : null,
+      status: "active",
+      category_id: null,
+      categories: {
+        id: item.sektor,
+        name: item.sektor ?? "Tanpa sektor",
+        slug: slugify(item.sektor ?? "tanpa-sektor"),
+      },
+    })) ?? [];
 
   if (error) {
     return (
       <>
         <Navbar />
-        <main className="min-h-screen bg-gray-50 px-6 py-8">
-          <section className="mx-auto max-w-5xl">
-            <h1 className="text-2xl font-bold text-gray-900">SI PESAT</h1>
-            <p className="mt-4 text-red-600">Error: {error.message}</p>
+        <main className="min-h-screen bg-slate-50 px-6 py-8">
+          <section className="mx-auto max-w-6xl">
+            <div className="rounded-3xl border bg-white p-8 shadow-sm">
+              <h1 className="text-2xl font-bold text-gray-900">SI PESAT</h1>
+              <p className="mt-4 text-red-600">Error: {error.message}</p>
+            </div>
           </section>
         </main>
         <Footer />
@@ -47,28 +72,36 @@ export default async function Home() {
     <>
       <Navbar />
 
-      <main className="min-h-screen bg-gray-50 px-6 py-8">
-        <section className="mx-auto max-w-5xl">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dbeafe,transparent_30%),linear-gradient(to_bottom,#f8fafc,#eef2ff)] px-6 py-8">
+        <section className="mx-auto max-w-6xl">
           <Hero />
 
-          <div className="mb-5 flex items-end justify-between gap-4">
+          <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
-              <p className="text-sm font-medium text-blue-600">
+              <p className="text-sm font-bold uppercase tracking-wide text-blue-600">
                 Direktori UMKM
               </p>
               <h2
                 id="daftar-umkm"
-                className="mt-1 text-2xl font-bold text-gray-900"
+                className="mt-2 text-3xl font-extrabold text-gray-950"
               >
-                Daftar UMKM
+                Jelajahi UMKM Terdaftar
               </h2>
-              <p className="mt-1 text-sm text-gray-600">
-                Cari dan temukan usaha lokal berdasarkan nama atau kategori.
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600">
+                Gunakan pencarian dan filter kategori untuk menemukan usaha
+                lokal yang sesuai dengan kebutuhan Anda.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border bg-white px-5 py-3 shadow-sm">
+              <p className="text-sm text-gray-500">Total Data</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {umkm.length} UMKM
               </p>
             </div>
           </div>
 
-          <UmkmList umkm={(umkm as any[]) ?? []} />
+          <UmkmList umkm={umkm} />
 
           <AboutSection />
         </section>

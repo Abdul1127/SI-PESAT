@@ -11,7 +11,7 @@ export default async function UmkmDetail({
   const { slug } = await params;
 
   const { data: umkm, error } = await supabase
-    .from("umkm")
+    .from("data 2025")
     .select("*")
     .eq("slug", slug)
     .single();
