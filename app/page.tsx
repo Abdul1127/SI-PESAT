@@ -4,6 +4,8 @@ import Navbar from "@/components/navbar";
 import Hero from "@/components/hero";
 import AboutSection from "@/components/AboutSection";
 import Footer from "@/components/footer";
+import UmkmMap from "@/components/UmkmMap";
+import ScrollToTopButton from "@/components/ScrollToTopButton";
 
 function slugify(text: string) {
   return text
@@ -23,33 +25,42 @@ export default async function Home() {
       sektor,
       latitude,
       longitude,
-      rt_rw
+      rt_rw,
+      gmaps_url
     `)
     .order("id", { ascending: true });
 
   const umkm =
-    data?.map((item: any) => ({
-      id: item.id,
-      business_name: item.nama_usaha,
-      slug: String(item.id),
-      phone: null,
-      short_address: item.alamat,
-      address: item.alamat,
-      description: item.deskripsi,
-      featured_product: item.deskripsi,
-      opening_hours: "-",
-      gmaps_url:
-        item.latitude && item.longitude
-          ? `https://www.google.com/maps/search/?api=1&query=${item.latitude},${item.longitude}`
-          : null,
-      status: "active",
-      category_id: null,
-      categories: {
-        id: item.sektor,
-        name: item.sektor ?? "Tanpa sektor",
-        slug: slugify(item.sektor ?? "tanpa-sektor"),
-      },
-    })) ?? [];
+    data?.map((item: any) => {
+      const mapsUrl =
+        item.gmaps_url && item.gmaps_url.trim() !== ""
+          ? item.gmaps_url
+          : item.latitude && item.longitude
+            ? `https://www.google.com/maps/search/?api=1&query=${item.latitude},${item.longitude}`
+            : null;
+
+      return {
+        id: item.id,
+        business_name: item.nama_usaha,
+        slug: String(item.id),
+        phone: null,
+        short_address: item.alamat,
+        address: item.alamat,
+        description: item.deskripsi,
+        featured_product: item.deskripsi,
+        opening_hours: "-",
+        latitude: item.latitude,
+        longitude: item.longitude,
+        gmaps_url: mapsUrl,
+        status: "active",
+        category_id: null,
+        categories: {
+          id: item.sektor,
+          name: item.sektor ?? "Tanpa sektor",
+          slug: slugify(item.sektor ?? "tanpa-sektor"),
+        },
+      };
+    }) ?? [];
 
   if (error) {
     return (
@@ -64,6 +75,7 @@ export default async function Home() {
           </section>
         </main>
         <Footer />
+        <ScrollToTopButton />
       </>
     );
   }
@@ -103,11 +115,14 @@ export default async function Home() {
 
           <UmkmList umkm={umkm} />
 
+          <UmkmMap umkm={umkm} />
+
           <AboutSection />
         </section>
       </main>
 
       <Footer />
+      <ScrollToTopButton />
     </>
   );
 }

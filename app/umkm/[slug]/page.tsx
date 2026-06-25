@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 import Navbar from "@/components/navbar";
 import Footer from "@/components/footer";
+import { MapPin, Store, Tags, Navigation, ArrowLeft } from "lucide-react";
 
 export default async function UmkmDetail({
   params,
@@ -13,30 +14,26 @@ export default async function UmkmDetail({
   const { data: umkm, error } = await supabase
     .from("data 2025")
     .select("*")
-    .eq("slug", slug)
+    .eq("id", slug)
     .single();
 
   if (error || !umkm) {
     return (
       <>
         <Navbar />
-        <main className="min-h-screen bg-gray-50 px-6 py-8">
-          <section className="mx-auto max-w-4xl">
-            <Link href="/" className="text-sm font-medium text-blue-600">
-              ← Kembali ke daftar UMKM
+        <main className="min-h-screen bg-slate-50 px-6 py-8">
+          <section className="mx-auto max-w-5xl">
+            <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-blue-600">
+              <ArrowLeft className="h-4 w-4" />
+              Kembali ke daftar UMKM
             </Link>
 
             <div className="mt-6 rounded-3xl border bg-white p-8 text-center shadow-sm">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-2xl">
-                ⚠️
-              </div>
-
-              <h1 className="mt-5 text-2xl font-bold text-gray-900">
+              <h1 className="text-2xl font-bold text-gray-900">
                 UMKM tidak ditemukan
               </h1>
-
               <p className="mt-2 text-gray-600">
-                Data UMKM yang kamu cari tidak tersedia atau belum aktif.
+                Data UMKM yang kamu cari tidak tersedia.
               </p>
             </div>
           </section>
@@ -46,139 +43,162 @@ export default async function UmkmDetail({
     );
   }
 
+  const mapsUrl =
+    umkm.gmaps_url && umkm.gmaps_url.trim() !== ""
+      ? umkm.gmaps_url
+      : umkm.latitude && umkm.longitude
+        ? `https://www.google.com/maps/search/?api=1&query=${umkm.latitude},${umkm.longitude}`
+        : null;
+
+  const hasOfficialMaps = umkm.gmaps_url && umkm.gmaps_url.trim() !== "";
+
   return (
     <>
       <Navbar />
 
-      <main className="min-h-screen bg-gray-50 px-6 py-8">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dbeafe,transparent_30%),linear-gradient(to_bottom,#f8fafc,#eef2ff)] px-6 py-8">
         <section className="mx-auto max-w-5xl">
-          <Link href="/" className="text-sm font-medium text-blue-600">
-            ← Kembali ke daftar UMKM
+          <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-blue-600">
+            <ArrowLeft className="h-4 w-4" />
+            Kembali ke daftar UMKM
           </Link>
 
           <div className="mt-6 overflow-hidden rounded-3xl border bg-white shadow-sm">
-            <div className="bg-blue-600 px-6 py-10 text-white">
-              <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 text-3xl">
-                    🏪
-                  </div>
+            <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-6 py-10 text-white">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15">
+                <Store className="h-8 w-8" />
+              </div>
 
-                  <p className="mt-5 text-sm font-medium text-blue-100">
-                    Profil UMKM
-                  </p>
+              <p className="mt-5 text-sm font-semibold uppercase tracking-wide text-blue-100">
+                Profil UMKM
+              </p>
 
-                  <h1 className="mt-2 text-3xl font-bold md:text-4xl">
-                    {umkm.business_name}
-                  </h1>
+              <h1 className="mt-2 text-3xl font-extrabold md:text-4xl">
+                {umkm.nama_usaha}
+              </h1>
 
-                  <p className="mt-3 max-w-2xl leading-7 text-blue-100">
-                    {umkm.description ?? "Deskripsi usaha belum tersedia."}
-                  </p>
-                </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="rounded-full bg-white/15 px-3 py-1 text-sm font-medium">
+                  {umkm.sektor ?? "Tanpa sektor"}
+                </span>
 
-                <div className="rounded-2xl bg-white/10 p-4 text-sm text-blue-50">
-                  <p className="font-semibold text-white">Status Data</p>
-                  <p className="mt-1">
-                    {umkm.status === "active"
-                      ? "Aktif ditampilkan"
-                      : umkm.status ?? "-"}
-                  </p>
-                </div>
+                <span className="rounded-full bg-white/15 px-3 py-1 text-sm font-medium">
+                  {hasOfficialMaps ? "Google Maps resmi tersedia" : "Menggunakan titik koordinat"}
+                </span>
               </div>
             </div>
 
             <div className="grid gap-6 p-6 lg:grid-cols-3">
-              <div className="space-y-4 lg:col-span-2">
-                <div className="rounded-2xl border bg-gray-50 p-5">
-                  <p className="text-sm font-medium text-blue-600">
-                    Informasi Usaha
-                  </p>
+              <div className="space-y-5 lg:col-span-2">
+                <div className="rounded-3xl border bg-slate-50 p-5">
+                  <div className="flex items-center gap-2 text-blue-600">
+                    <Tags className="h-5 w-5" />
+                    <p className="font-semibold">Informasi Usaha</p>
+                  </div>
 
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div className="mt-5 grid gap-4 md:grid-cols-2">
                     <div>
-                      <p className="text-sm text-gray-500">Produk Unggulan</p>
+                      <p className="text-sm text-gray-500">Nama Usaha</p>
                       <p className="mt-1 font-semibold text-gray-900">
-                        {umkm.featured_product ?? "-"}
+                        {umkm.nama_usaha ?? "-"}
                       </p>
                     </div>
 
                     <div>
-                      <p className="text-sm text-gray-500">Jam Operasional</p>
+                      <p className="text-sm text-gray-500">Sektor</p>
                       <p className="mt-1 font-semibold text-gray-900">
-                        {umkm.opening_hours ?? "-"}
+                        {umkm.sektor ?? "-"}
                       </p>
                     </div>
 
                     <div>
-                      <p className="text-sm text-gray-500">Pemilik</p>
+                      <p className="text-sm text-gray-500">RT/RW</p>
                       <p className="mt-1 font-semibold text-gray-900">
-                        {umkm.owner_name ?? "-"}
+                        {umkm.rt_rw ?? "-"}
                       </p>
                     </div>
 
                     <div>
-                      <p className="text-sm text-gray-500">Kontak</p>
+                      <p className="text-sm text-gray-500">ID Data</p>
                       <p className="mt-1 font-semibold text-gray-900">
-                        {umkm.phone ?? "-"}
+                        {umkm.id}
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-2xl border bg-gray-50 p-5">
-                  <p className="text-sm font-medium text-blue-600">
-                    Lokasi Usaha
+                <div className="rounded-3xl border bg-slate-50 p-5">
+                  <p className="font-semibold text-blue-600">Deskripsi</p>
+                  <p className="mt-3 leading-7 text-gray-700">
+                    {umkm.deskripsi ?? "Deskripsi usaha belum tersedia."}
                   </p>
+                </div>
 
-                  <p className="mt-3 text-sm text-gray-500">Alamat Lengkap</p>
+                <div className="rounded-3xl border bg-slate-50 p-5">
+                  <div className="flex items-center gap-2 text-blue-600">
+                    <MapPin className="h-5 w-5" />
+                    <p className="font-semibold">Lokasi Usaha</p>
+                  </div>
+
+                  <p className="mt-4 text-sm text-gray-500">Alamat</p>
                   <p className="mt-1 font-semibold text-gray-900">
-                    {umkm.address ?? umkm.short_address ?? "-"}
+                    {umkm.alamat ?? "-"}
                   </p>
 
-                  {(umkm.latitude || umkm.longitude) && (
-                    <p className="mt-3 text-sm text-gray-600">
-                      Koordinat: {umkm.latitude ?? "-"}, {umkm.longitude ?? "-"}
-                    </p>
-                  )}
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <div>
+                      <p className="text-sm text-gray-500">Latitude</p>
+                      <p className="mt-1 font-semibold text-gray-900">
+                        {umkm.latitude ?? "-"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-sm text-gray-500">Longitude</p>
+                      <p className="mt-1 font-semibold text-gray-900">
+                        {umkm.longitude ?? "-"}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <aside className="rounded-2xl border bg-white p-5 shadow-sm">
-                <p className="font-semibold text-gray-900">Aksi Cepat</p>
-                <p className="mt-1 text-sm text-gray-600">
-                  Hubungi UMKM atau buka lokasi usaha melalui Google Maps.
+              <aside className="h-fit rounded-3xl border bg-white p-5 shadow-sm">
+                <p className="text-lg font-bold text-gray-900">Aksi Cepat</p>
+                <p className="mt-2 text-sm leading-6 text-gray-600">
+                  Buka lokasi UMKM melalui Google Maps. Jika tersedia, sistem akan memakai link Google Maps resmi.
                 </p>
 
-                <div className="mt-5 space-y-2">
-                  {umkm.phone && (
+                <div className="mt-5 space-y-3">
+                  {mapsUrl && (
                     <a
-                      href={`https://wa.me/${umkm.phone.replace(/^0/, "62")}`}
+                      href={mapsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block rounded-xl bg-green-600 px-5 py-3 text-center text-sm font-semibold text-white hover:bg-green-700"
+                      className="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700"
                     >
-                      Hubungi WhatsApp
-                    </a>
-                  )}
-
-                  {umkm.gmaps_url && (
-                    <a
-                      href={umkm.gmaps_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block rounded-xl bg-blue-600 px-5 py-3 text-center text-sm font-semibold text-white hover:bg-blue-700"
-                    >
+                      <Navigation className="h-4 w-4" />
                       Buka Google Maps
                     </a>
                   )}
 
                   <Link
                     href="/"
-                    className="block rounded-xl border px-5 py-3 text-center text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    className="block rounded-2xl border px-5 py-3 text-center text-sm font-semibold text-gray-700 hover:bg-gray-50"
                   >
                     Kembali ke Direktori
                   </Link>
+                </div>
+
+                <div className="mt-5 rounded-2xl bg-blue-50 p-4">
+                  <p className="text-sm font-semibold text-blue-700">
+                    Status Maps
+                  </p>
+                  <p className="mt-1 text-sm text-gray-600">
+                    {hasOfficialMaps
+                      ? "Menggunakan link Google Maps resmi."
+                      : "Belum ada link resmi, menggunakan koordinat."}
+                  </p>
                 </div>
               </aside>
             </div>

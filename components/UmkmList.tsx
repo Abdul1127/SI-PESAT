@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { Info, MapPin, MessageCircle, Search, Store, Tags } from "lucide-react";
+import { MapPin, Search, Store, Tags, Navigation } from "lucide-react";
 
 export default function UmkmList({ umkm }: { umkm: any[] }) {
   const [search, setSearch] = useState("");
@@ -26,9 +25,13 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
   );
 
   const filteredUmkm = umkm.filter((item) => {
-    const matchSearch = item.business_name
-      ?.toLowerCase()
-      .includes(search.toLowerCase());
+    const keyword = search.toLowerCase();
+
+    const matchSearch =
+      item.business_name?.toLowerCase().includes(keyword) ||
+      item.short_address?.toLowerCase().includes(keyword) ||
+      item.description?.toLowerCase().includes(keyword) ||
+      item.categories?.name?.toLowerCase().includes(keyword);
 
     const matchCategory =
       selectedCategory === "semua" ||
@@ -62,7 +65,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
             <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Cari nama UMKM..."
+              placeholder="Cari nama, alamat, sektor..."
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full rounded-xl border bg-gray-50 py-3 pl-11 pr-4 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-blue-500 focus:bg-white"
@@ -145,7 +148,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
       </aside>
 
       <section>
-        <div className="mb-5 flex items-center justify-between gap-4">
+        <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <h3 className="text-xl font-bold text-gray-900">Daftar UMKM</h3>
             <p className="mt-1 text-sm text-gray-600">
@@ -154,11 +157,6 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
               {filteredUmkm.length} UMKM.
             </p>
           </div>
-
-          <select className="rounded-xl border bg-white px-4 py-3 text-sm text-gray-700 outline-none">
-            <option>Terbaru</option>
-            <option>Nama A-Z</option>
-          </select>
         </div>
 
         <div className="space-y-3">
@@ -167,14 +165,14 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
               key={item.id}
               className="rounded-3xl border bg-white p-4 shadow-sm transition hover:border-blue-200 hover:shadow-md"
             >
-              <div className="flex items-center gap-5">
-                <div className="flex h-24 w-32 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-5">
+                <div className="flex h-20 w-full shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 md:h-24 md:w-32">
                   <Store className="h-9 w-9" />
                 </div>
 
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="truncate text-xl font-bold text-gray-900">
+                    <h3 className="break-words text-lg font-bold text-gray-900 md:text-xl">
                       {item.business_name}
                     </h3>
 
@@ -187,42 +185,24 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
                     {item.description}
                   </p>
 
-                  <p className="mt-2 flex items-center gap-1 text-sm text-gray-500">
-                    <MapPin className="h-4 w-4 shrink-0 text-rose-500" />
-                    {item.short_address ?? "Alamat belum tersedia"}
+                  <p className="mt-2 flex items-start gap-1 text-sm text-gray-500">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                    <span>{item.short_address ?? "Alamat belum tersedia"}</span>
                   </p>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-3">
-                  <Link
-                    href={`/umkm/${item.slug}`}
-                    className="group flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border bg-white text-sm font-semibold text-gray-700 transition-all hover:w-24 hover:bg-gray-50"
-                  >
-                    <Info className="h-5 w-5 group-hover:hidden" />
-                    <span className="hidden group-hover:inline">Detail</span>
-                  </Link>
-
-                  {item.phone && (
-                    <a
-                      href={`https://wa.me/${item.phone.replace(/^0/, "62")}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-green-600 text-sm font-semibold text-white transition-all hover:w-28 hover:bg-green-700"
-                    >
-                      <MessageCircle className="h-5 w-5 group-hover:hidden" />
-                      <span className="hidden group-hover:inline">WhatsApp</span>
-                    </a>
-                  )}
-
+                <div className="flex w-full shrink-0 items-center gap-3 md:w-auto">
                   {item.gmaps_url && (
                     <a
                       href={item.gmaps_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="group flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-blue-600 text-sm font-semibold text-white transition-all hover:w-24 hover:bg-blue-700"
+                      className="group flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-blue-600 text-sm font-semibold text-white transition-all hover:bg-blue-700 md:w-12 md:hover:w-32"
                     >
-                      <MapPin className="h-5 w-5 group-hover:hidden" />
-                      <span className="hidden group-hover:inline">Maps</span>
+                      <Navigation className="h-5 w-5 md:group-hover:hidden" />
+                      <span className="inline md:hidden md:group-hover:inline">
+                        Lihat Lokasi
+                      </span>
                     </a>
                   )}
                 </div>
