@@ -11,17 +11,17 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
   const listTopRef = useRef<HTMLDivElement | null>(null);
   const itemsPerPage = 10;
 
+  const allSectors = umkm.flatMap((item) => item.sectors ?? []);
+
   const categories = Array.from(
     new Map(
-      umkm
-        .filter((item) => item.categories)
-        .map((item) => [
-          item.categories.slug,
-          {
-            name: item.categories.name,
-            slug: item.categories.slug,
-          },
-        ])
+      allSectors.map((sector: any) => [
+        sector.slug,
+        {
+          name: sector.name,
+          slug: sector.slug,
+        },
+      ])
     ).values()
   );
 
@@ -32,11 +32,13 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
       item.business_name?.toLowerCase().includes(keyword) ||
       item.short_address?.toLowerCase().includes(keyword) ||
       item.description?.toLowerCase().includes(keyword) ||
-      item.categories?.name?.toLowerCase().includes(keyword);
+      item.sectors?.some((sector: any) =>
+        sector.name?.toLowerCase().includes(keyword)
+      );
 
     const matchCategory =
       selectedCategory === "semua" ||
-      item.categories?.slug === selectedCategory;
+      item.sectors?.some((sector: any) => sector.slug === selectedCategory);
 
     return matchSearch && matchCategory;
   });
@@ -117,8 +119,10 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
           >
             <option value="semua">Semua kategori ({umkm.length})</option>
             {categories.map((category: any) => {
-              const count = umkm.filter(
-                (item) => item.categories?.slug === category.slug
+              const count = umkm.filter((item) =>
+                item.sectors?.some(
+                  (sector: any) => sector.slug === category.slug
+                )
               ).length;
 
               return (
@@ -143,8 +147,10 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
             </button>
 
             {categories.map((category: any) => {
-              const count = umkm.filter(
-                (item) => item.categories?.slug === category.slug
+              const count = umkm.filter((item) =>
+                item.sectors?.some(
+                  (sector: any) => sector.slug === category.slug
+                )
               ).length;
 
               return (
@@ -230,15 +236,28 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
                     {item.business_name}
                   </h3>
 
-                  <div className="mt-2">
-                    <span className="inline-block max-w-full truncate rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
-                      {item.categories?.name ?? "Tanpa kategori"}
-                    </span>
+                  {item.sectors?.length > 1 && (
+                    <p className="mt-1 text-xs font-semibold text-green-600">
+                      Multi layanan
+                    </p>
+                  )}
+
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {item.sectors?.map((sector: any) => (
+                      <span
+                        key={sector.slug}
+                        className="inline-block max-w-full truncate rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
+                      >
+                        {sector.name}
+                      </span>
+                    ))}
                   </div>
 
-                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-gray-600">
-                    {item.description}
-                  </p>
+                  <ul className="mt-3 space-y-1 text-sm leading-6 text-gray-600">
+                    {item.descriptions?.slice(0, 4).map((desc: string) => (
+                      <li key={desc}>• {desc}</li>
+                    ))}
+                  </ul>
 
                   <p className="mt-2 flex items-start gap-1 text-sm text-gray-500">
                     <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />

@@ -39,7 +39,7 @@ async function HomeContent() {
     `)
     .order("id", { ascending: true });
 
-  const umkm =
+  const rawUmkm =
     data?.map((item: any) => {
       const mapsUrl =
         item.gmaps_url && item.gmaps_url.trim() !== ""
@@ -52,24 +52,57 @@ async function HomeContent() {
         id: item.id,
         business_name: item.nama_usaha,
         slug: String(item.id),
-        phone: null,
         short_address: item.alamat,
         address: item.alamat,
         description: item.deskripsi,
-        featured_product: item.deskripsi,
-        opening_hours: "-",
+        descriptions: item.deskripsi ? [item.deskripsi] : [],
         latitude: item.latitude,
         longitude: item.longitude,
         gmaps_url: mapsUrl,
-        status: "active",
-        category_id: null,
         categories: {
           id: item.sektor,
           name: item.sektor ?? "Tanpa sektor",
           slug: slugify(item.sektor ?? "tanpa-sektor"),
         },
+        sectors: item.sektor
+          ? [
+              {
+                id: item.sektor,
+                name: item.sektor,
+                slug: slugify(item.sektor),
+              },
+            ]
+          : [],
       };
     }) ?? [];
+
+  const grouped = new Map<string, any>();
+
+  for (const item of rawUmkm) {
+    const key = `${item.business_name?.toLowerCase().trim()}|${item.address?.toLowerCase().trim()}`;
+
+    if (!grouped.has(key)) {
+      grouped.set(key, { ...item });
+    } else {
+      const current = grouped.get(key);
+
+      for (const sector of item.sectors) {
+        if (!current.sectors.some((s: any) => s.slug === sector.slug)) {
+          current.sectors.push(sector);
+        }
+      }
+
+      for (const desc of item.descriptions) {
+        if (desc && !current.descriptions.includes(desc)) {
+          current.descriptions.push(desc);
+        }
+      }
+
+      current.description = current.descriptions.join(", ");
+    }
+  }
+
+  const umkm = Array.from(grouped.values());
 
   if (error) {
     return (
@@ -96,7 +129,7 @@ async function HomeContent() {
       <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dbeafe,transparent_30%),linear-gradient(to_bottom,#f8fafc,#eef2ff)] px-6 py-8">
         <section className="mx-auto max-w-6xl">
           <div id="beranda" className="scroll-mt-28">
-  <         Hero />
+            <Hero />
           </div>
 
           <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
@@ -117,7 +150,7 @@ async function HomeContent() {
             </div>
 
             <div className="rounded-2xl border bg-white px-5 py-3 shadow-sm">
-              <p className="text-sm text-gray-500">Total Data</p>
+              <p className="text-sm text-gray-500">Total Data Unik</p>
               <p className="text-2xl font-bold text-gray-900">
                 {umkm.length} UMKM
               </p>
