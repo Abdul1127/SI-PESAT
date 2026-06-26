@@ -55,35 +55,54 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
   };
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
-      <aside className="space-y-4">
-        <div className="rounded-3xl border bg-white p-4 shadow-sm md:p-5">
+    <div className="grid min-w-0 gap-5 lg:grid-cols-[280px_1fr]">
+      <aside className="min-w-0 space-y-4">
+        <div className="min-w-0 rounded-3xl border bg-white p-4 shadow-sm md:p-5">
           <p className="mb-3 font-semibold text-gray-900">Pencarian</p>
 
-          <div className="relative">
+          <div className="relative min-w-0">
             <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               placeholder="Cari UMKM..."
               value={search}
               onChange={(e) => changeSearch(e.target.value)}
-              className="w-full rounded-xl border bg-gray-50 py-3 pl-11 pr-4 text-sm text-gray-900 outline-none focus:border-blue-500"
+              className="w-full min-w-0 rounded-xl border bg-gray-50 py-3 pl-11 pr-4 text-sm text-gray-900 outline-none focus:border-blue-500"
             />
           </div>
 
           <p className="mb-3 mt-5 font-semibold text-gray-900">Kategori</p>
 
-          <div className="flex gap-2 overflow-x-auto pb-2 lg:block lg:space-y-2 lg:overflow-visible lg:pb-0">
+          <select
+            value={selectedCategory}
+            onChange={(e) => changeCategory(e.target.value)}
+            className="block w-full rounded-xl border bg-white px-4 py-3 text-sm text-gray-700 outline-none lg:hidden"
+          >
+            <option value="semua">Semua kategori ({umkm.length})</option>
+            {categories.map((category: any) => {
+              const count = umkm.filter(
+                (item) => item.categories?.slug === category.slug
+              ).length;
+
+              return (
+                <option key={category.slug} value={category.slug}>
+                  {category.name} ({count})
+                </option>
+              );
+            })}
+          </select>
+
+          <div className="hidden space-y-2 lg:block">
             <button
               onClick={() => changeCategory("semua")}
-              className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium lg:flex lg:w-full lg:justify-between lg:rounded-xl ${
+              className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-medium ${
                 selectedCategory === "semua"
-                  ? "bg-blue-600 text-white lg:bg-blue-50 lg:text-blue-700"
-                  : "border bg-white text-gray-700 lg:border-0"
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-gray-700 hover:bg-gray-50"
               }`}
             >
               <span>Semua</span>
-              <span className="ml-2">{umkm.length}</span>
+              <span>{umkm.length}</span>
             </button>
 
             {categories.map((category: any) => {
@@ -95,23 +114,23 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
                 <button
                   key={category.slug}
                   onClick={() => changeCategory(category.slug)}
-                  className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium lg:flex lg:w-full lg:justify-between lg:rounded-xl ${
+                  className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-medium ${
                     selectedCategory === category.slug
-                      ? "bg-blue-600 text-white lg:bg-blue-50 lg:text-blue-700"
-                      : "border bg-white text-gray-700 lg:border-0"
+                      ? "bg-blue-50 text-blue-700"
+                      : "text-gray-700 hover:bg-gray-50"
                   }`}
                 >
-                  <span className="max-w-[150px] truncate lg:max-w-[190px]">
+                  <span className="max-w-[190px] truncate">
                     {category.name}
                   </span>
-                  <span className="ml-2">{count}</span>
+                  <span>{count}</span>
                 </button>
               );
             })}
           </div>
         </div>
 
-        <div className="rounded-3xl border bg-white p-4 shadow-sm md:p-5">
+        <div className="min-w-0 rounded-3xl border bg-white p-4 shadow-sm md:p-5">
           <p className="font-semibold text-gray-900">Informasi</p>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
@@ -139,7 +158,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
         </div>
       </aside>
 
-      <section>
+      <section className="min-w-0">
         <div className="mb-4">
           <h3 className="text-xl font-bold text-gray-900">Daftar UMKM</h3>
           <p className="mt-1 text-sm text-gray-600">
@@ -153,20 +172,20 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
           {currentUmkm.map((item) => (
             <div
               key={item.id}
-              className="rounded-3xl border bg-white p-4 shadow-sm"
+              className="min-w-0 rounded-3xl border bg-white p-4 shadow-sm"
             >
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-5">
+              <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-center md:gap-5">
                 <div className="flex h-16 w-full items-center justify-center rounded-2xl bg-blue-50 text-blue-600 md:h-24 md:w-32 md:shrink-0">
                   <Store className="h-8 w-8" />
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-lg font-bold text-gray-900 md:text-xl">
-                      {item.business_name}
-                    </h3>
+                  <h3 className="break-words text-lg font-bold text-gray-900 md:text-xl">
+                    {item.business_name}
+                  </h3>
 
-                    <span className="max-w-full rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                  <div className="mt-2">
+                    <span className="inline-block max-w-full truncate rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
                       {item.categories?.name ?? "Tanpa kategori"}
                     </span>
                   </div>
@@ -177,7 +196,9 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
 
                   <p className="mt-2 flex items-start gap-1 text-sm text-gray-500">
                     <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
-                    <span>{item.short_address ?? "Alamat belum tersedia"}</span>
+                    <span className="break-words">
+                      {item.short_address ?? "Alamat belum tersedia"}
+                    </span>
                   </p>
                 </div>
 
