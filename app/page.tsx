@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import UmkmList from "@/components/UmkmList";
 import Navbar from "@/components/navbar";
@@ -14,7 +15,15 @@ function slugify(text: string) {
     .replace(/(^-|-$)/g, "");
 }
 
-export default async function Home() {
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50 p-8">Memuat SI PESAT...</div>}>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+async function HomeContent() {
   const { data, error } = await supabase
     .from("data 2025")
     .select(`
