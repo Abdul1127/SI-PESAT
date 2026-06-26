@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { MapPin, Search, Store, Tags, Navigation } from "lucide-react";
 
 export default function UmkmList({ umkm }: { umkm: any[] }) {
@@ -8,6 +8,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
   const [selectedCategory, setSelectedCategory] = useState("semua");
   const [currentPage, setCurrentPage] = useState(1);
 
+  const listTopRef = useRef<HTMLDivElement | null>(null);
   const itemsPerPage = 10;
 
   const categories = Array.from(
@@ -44,6 +45,18 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentUmkm = filteredUmkm.slice(startIndex, startIndex + itemsPerPage);
 
+  const scrollToListTop = () => {
+    listTopRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
+  const goToPage = (page: number) => {
+    setCurrentPage(page);
+    setTimeout(scrollToListTop, 50);
+  };
+
   const changeSearch = (value: string) => {
     setSearch(value);
     setCurrentPage(1);
@@ -53,6 +66,30 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
     setSelectedCategory(slug);
     setCurrentPage(1);
   };
+
+  const Pagination = () => (
+    <div className="my-5 flex flex-wrap items-center justify-center gap-2">
+      <button
+        onClick={() => goToPage(Math.max(currentPage - 1, 1))}
+        disabled={currentPage === 1}
+        className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-40"
+      >
+        Sebelumnya
+      </button>
+
+      <span className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-gray-700">
+        {currentPage} / {totalPages}
+      </span>
+
+      <button
+        onClick={() => goToPage(Math.min(currentPage + 1, totalPages))}
+        disabled={currentPage === totalPages}
+        className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-40"
+      >
+        Berikutnya
+      </button>
+    </div>
+  );
 
   return (
     <div className="grid min-w-0 gap-5 lg:grid-cols-[280px_1fr]">
@@ -166,7 +203,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
       </aside>
 
       <section className="min-w-0">
-        <div className="mb-4">
+        <div ref={listTopRef} className="scroll-mt-28">
           <h3 className="text-xl font-bold text-gray-900">Daftar UMKM</h3>
           <p className="mt-1 text-sm text-gray-600">
             Menampilkan {filteredUmkm.length === 0 ? 0 : startIndex + 1}-
@@ -174,6 +211,8 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
             {filteredUmkm.length} UMKM.
           </p>
         </div>
+
+        {filteredUmkm.length > 0 && <Pagination />}
 
         <div className="space-y-3">
           {currentUmkm.map((item) => (
@@ -225,29 +264,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
           ))}
         </div>
 
-        {filteredUmkm.length > 0 && (
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-              disabled={currentPage === 1}
-              className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-40"
-            >
-              Sebelumnya
-            </button>
-
-            <span className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-gray-700">
-              {currentPage} / {totalPages}
-            </span>
-
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-              disabled={currentPage === totalPages}
-              className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-40"
-            >
-              Berikutnya
-            </button>
-          </div>
-        )}
+        {filteredUmkm.length > 0 && <Pagination />}
       </section>
     </div>
   );
