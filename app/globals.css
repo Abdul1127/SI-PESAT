@@ -79,3 +79,9 @@ html {
 body {
   background: #f8fafc;
 }
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
