@@ -75,17 +75,17 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
           <div className="mt-5">
             <p className="mb-3 font-semibold text-gray-900">Kategori</p>
 
-            <div className="space-y-2">
+            <div className="flex gap-2 overflow-x-auto pb-2 lg:block lg:space-y-2 lg:overflow-visible lg:pb-0">
               <button
                 onClick={() => handleCategoryChange("semua")}
-                className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-medium ${
+                className={`flex shrink-0 items-center justify-between rounded-full px-4 py-2 text-sm font-medium lg:w-full lg:rounded-xl lg:py-3 ${
                   selectedCategory === "semua"
-                    ? "bg-blue-50 text-blue-700"
-                    : "text-gray-700 hover:bg-gray-50"
+                    ? "bg-blue-600 text-white lg:bg-blue-50 lg:text-blue-700"
+                    : "border bg-white text-gray-700 hover:bg-gray-50 lg:border-0"
                 }`}
               >
-                <span>Semua Kategori</span>
-                <span>{umkm.length}</span>
+                <span>Semua</span>
+                <span className="ml-2">{umkm.length}</span>
               </button>
 
               {categories.map((category: any) => {
@@ -97,14 +97,16 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
                   <button
                     key={category.slug}
                     onClick={() => handleCategoryChange(category.slug)}
-                    className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-medium ${
+                    className={`flex shrink-0 items-center justify-between rounded-full px-4 py-2 text-sm font-medium lg:w-full lg:rounded-xl lg:py-3 ${
                       selectedCategory === category.slug
-                        ? "bg-blue-50 text-blue-700"
-                        : "text-gray-700 hover:bg-gray-50"
+                        ? "bg-blue-600 text-white lg:bg-blue-50 lg:text-blue-700"
+                        : "border bg-white text-gray-700 hover:bg-gray-50 lg:border-0"
                     }`}
                   >
-                    <span className="truncate">{category.name}</span>
-                    <span>{count}</span>
+                    <span className="max-w-[160px] truncate lg:max-w-[190px]">
+                      {category.name}
+                    </span>
+                    <span className="ml-2">{count}</span>
                   </button>
                 );
               })}
@@ -115,11 +117,11 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
         <div className="rounded-3xl border bg-white p-5 shadow-sm">
           <p className="font-semibold text-gray-900">Informasi</p>
 
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
             <div className="flex items-center justify-between rounded-2xl bg-blue-50 p-3">
               <div className="flex items-center gap-3">
                 <Store className="h-5 w-5 text-blue-600" />
-                <span className="text-sm text-gray-700">Total UMKM</span>
+                <span className="text-sm text-gray-700">Total</span>
               </div>
               <span className="font-bold text-gray-900">{umkm.length}</span>
             </div>
@@ -127,7 +129,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
             <div className="flex items-center justify-between rounded-2xl bg-green-50 p-3">
               <div className="flex items-center gap-3">
                 <MapPin className="h-5 w-5 text-green-600" />
-                <span className="text-sm text-gray-700">Ditampilkan</span>
+                <span className="text-sm text-gray-700">Tampil</span>
               </div>
               <span className="font-bold text-gray-900">
                 {filteredUmkm.length}
@@ -137,7 +139,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
             <div className="flex items-center justify-between rounded-2xl bg-indigo-50 p-3">
               <div className="flex items-center gap-3">
                 <Tags className="h-5 w-5 text-indigo-600" />
-                <span className="text-sm text-gray-700">Kategori</span>
+                <span className="text-sm text-gray-700">Sektor</span>
               </div>
               <span className="font-bold text-gray-900">
                 {categories.length}

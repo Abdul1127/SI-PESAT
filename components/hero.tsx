@@ -1,65 +1,77 @@
+import Link from "next/link";
+import { ArrowRight, MapPin } from "lucide-react";
+
 export default function Hero() {
   return (
-    <section className="mb-8 overflow-hidden rounded-3xl border bg-gradient-to-br from-blue-50 via-white to-blue-100 shadow-sm">
-      <div className="grid gap-6 px-6 py-8 md:grid-cols-[1.1fr_0.9fr] md:px-8 md:py-9">
-        <div className="flex flex-col justify-center">
-          <p className="text-xs font-bold uppercase tracking-wide text-blue-600">
-            Website Direktori UMKM Kelurahan
-          </p>
+    <section className="relative overflow-hidden rounded-[32px] border bg-gradient-to-br from-white via-blue-50 to-indigo-100 px-6 py-10 md:px-12 md:py-16">
+      <div className="grid items-center gap-10 lg:grid-cols-2">
 
-          <h1 className="mt-3 text-3xl font-extrabold leading-tight text-gray-950 md:text-5xl">
-            Temukan UMKM Lokal dengan{" "}
-            <span className="text-blue-600">Lebih Mudah</span>
+        {/* KIRI */}
+        <div>
+          <span className="inline-flex items-center rounded-full bg-blue-100 px-4 py-2 text-sm font-semibold text-blue-700">
+            📍 Website Direktori UMKM Kelurahan
+          </span>
+
+          <h1 className="mt-6 text-4xl font-black leading-tight text-gray-900 md:text-6xl">
+            Temukan UMKM
+            <br />
+            Lokal dengan
+            <span className="text-blue-600"> Lebih Mudah</span>
           </h1>
 
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-gray-600 md:text-base">
-            SI PESAT membantu masyarakat menemukan informasi UMKM berdasarkan
-            nama usaha, kategori, kontak, dan lokasi Google Maps.
+          <p className="mt-6 max-w-xl text-base leading-8 text-gray-600 md:text-lg">
+            SI PESAT membantu masyarakat menemukan informasi UMKM
+            berdasarkan nama usaha, kategori, alamat, serta lokasi Google
+            Maps secara cepat.
           </p>
 
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="mt-8 flex flex-col gap-4 sm:flex-row">
             <a
               href="#daftar-umkm"
-              className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-7 py-4 font-semibold text-white transition hover:bg-blue-700"
             >
               Lihat Daftar UMKM
+              <ArrowRight size={18} />
             </a>
 
             <a
-              href="#tentang"
-              className="rounded-xl border bg-white px-5 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+              href="#peta"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-300 bg-white px-7 py-4 font-semibold text-gray-700 transition hover:bg-gray-50"
             >
-              Tentang SI PESAT
+              <MapPin size={18} />
+              Lihat Peta
             </a>
           </div>
         </div>
 
-        <div className="relative hidden min-h-[220px] md:block">
-          <div className="absolute bottom-0 right-4 h-32 w-56 rounded-t-[4rem] bg-blue-100" />
+        {/* KANAN */}
+        <div className="flex justify-center">
+          <div className="relative h-64 w-64 md:h-96 md:w-96">
 
-          <div className="absolute bottom-9 left-10 h-28 w-14 rounded-t-2xl bg-blue-200">
-            <div className="mx-auto mt-4 h-3 w-8 rounded bg-white/70" />
-            <div className="mx-auto mt-3 h-3 w-8 rounded bg-white/70" />
-            <div className="mx-auto mt-3 h-3 w-8 rounded bg-white/70" />
-          </div>
+            <div className="absolute inset-0 rounded-full bg-blue-200 blur-3xl opacity-40"></div>
 
-          <div className="absolute bottom-8 right-16 h-32 w-36 rounded-3xl bg-white shadow-md">
-            <div className="rounded-t-3xl bg-blue-600 px-4 py-2 text-center text-sm font-bold text-white">
-              UMKM
+            <div className="absolute left-8 top-10 h-28 w-20 rounded-2xl bg-blue-100 shadow-md md:h-36 md:w-24"></div>
+
+            <div className="absolute bottom-6 right-4 flex h-44 w-44 flex-col items-center rounded-[30px] bg-white shadow-2xl md:h-56 md:w-56">
+
+              <div className="flex h-14 w-full items-center justify-center rounded-t-[30px] bg-blue-600 font-bold text-white">
+                UMKM
+              </div>
+
+              <div className="mt-5 h-20 w-20 rounded-2xl bg-blue-100"></div>
+
+              <div className="mt-5 h-4 w-24 rounded-full bg-gray-200"></div>
+
+              <div className="mt-3 h-4 w-20 rounded-full bg-gray-200"></div>
             </div>
 
-            <div className="mx-auto mt-4 h-12 w-16 rounded-t-xl bg-blue-100" />
-            <div className="mx-auto mt-3 h-7 w-20 rounded bg-blue-50" />
-          </div>
+            <div className="absolute left-28 top-20 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-xl">
+              📍
+            </div>
 
-          <div className="absolute bottom-20 left-32 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-2xl text-white shadow-lg">
-            📍
           </div>
-
-          <div className="absolute right-4 top-8 h-9 w-18 rounded-full bg-white/80" />
-          <div className="absolute right-0 top-13 h-7 w-14 rounded-full bg-white/70" />
-          <div className="absolute left-28 top-10 h-7 w-14 rounded-full bg-white/80" />
         </div>
+
       </div>
     </section>
   );

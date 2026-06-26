@@ -70,3 +70,12 @@
 html {
   scroll-behavior: smooth;
 }
+
+html {
+  scroll-behavior: smooth;
+  background: #f8fafc;
+}
+
+body {
+  background: #f8fafc;
+}

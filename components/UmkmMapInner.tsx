@@ -64,15 +64,15 @@ export default function UmkmMapInner({ umkm }: { umkm: any[] }) {
 
   return (
     <section
-        id="peta"
-        className="mt-10 rounded-3xl border bg-white p-5 shadow-sm"
+      id="peta"
+      className="relative z-0 mt-10 scroll-mt-28 rounded-3xl border bg-white p-4 shadow-sm md:p-5"
     >
       <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className="text-sm font-bold uppercase tracking-wide text-blue-600">
             Peta Persebaran
           </p>
-          <h2 className="mt-2 text-3xl font-extrabold text-gray-950">
+          <h2 className="mt-2 text-2xl font-extrabold text-gray-950 md:text-3xl">
             Lokasi UMKM
           </h2>
           <p className="mt-2 text-sm text-gray-600">
@@ -80,7 +80,7 @@ export default function UmkmMapInner({ umkm }: { umkm: any[] }) {
           </p>
         </div>
 
-        <div className="rounded-2xl bg-blue-50 px-5 py-3">
+        <div className="w-fit rounded-2xl bg-blue-50 px-5 py-3">
           <p className="text-sm text-blue-700">Titik Ditampilkan</p>
           <p className="text-2xl font-bold text-blue-900">
             {filteredUmkm.length}
@@ -91,7 +91,7 @@ export default function UmkmMapInner({ umkm }: { umkm: any[] }) {
       <div className="mb-4 flex flex-wrap gap-2">
         <button
           onClick={() => setSelectedCategory("semua")}
-          className={`rounded-full px-4 py-2 text-sm font-medium ${
+          className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium ${
             selectedCategory === "semua"
               ? "bg-blue-600 text-white"
               : "border bg-white text-gray-700 hover:bg-gray-50"
@@ -104,7 +104,7 @@ export default function UmkmMapInner({ umkm }: { umkm: any[] }) {
           <button
             key={category.slug}
             onClick={() => setSelectedCategory(category.slug)}
-            className={`rounded-full px-4 py-2 text-sm font-medium ${
+            className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium ${
               selectedCategory === category.slug
                 ? "bg-blue-600 text-white"
                 : "border bg-white text-gray-700 hover:bg-gray-50"
@@ -115,12 +115,12 @@ export default function UmkmMapInner({ umkm }: { umkm: any[] }) {
         ))}
       </div>
 
-      <div className="overflow-hidden rounded-3xl border">
+      <div className="relative z-0 overflow-hidden rounded-3xl border bg-slate-100">
         <MapContainer
           center={center}
           zoom={14}
           scrollWheelZoom={false}
-          className="h-[500px] w-full"
+          className="z-0 h-[360px] w-full md:h-[460px]"
         >
           <TileLayer
             attribution='&copy; OpenStreetMap contributors'
@@ -159,9 +159,7 @@ export default function UmkmMapInner({ umkm }: { umkm: any[] }) {
                       Status lokasi
                     </p>
                     <p className="mt-1 text-xs text-gray-600">
-                      {item.gmaps_url
-                        ? "Tersedia tautan Google Maps."
-                        : "Menggunakan titik koordinat."}
+                      Tersedia tautan Google Maps.
                     </p>
                   </div>
 

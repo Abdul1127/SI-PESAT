@@ -1,7 +1,7 @@
 export default function Footer() {
   return (
-    <footer className="mt-12 border-t bg-white">
-      <div className="mx-auto max-w-5xl px-6 py-8">
+    <footer className="border-t bg-white">
+      <div className="mx-auto max-w-6xl px-6 py-8">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-lg font-bold text-gray-900">SI PESAT</p>

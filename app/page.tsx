@@ -86,7 +86,9 @@ export default async function Home() {
 
       <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dbeafe,transparent_30%),linear-gradient(to_bottom,#f8fafc,#eef2ff)] px-6 py-8">
         <section className="mx-auto max-w-6xl">
-          <Hero />
+          <div id="beranda" className="scroll-mt-28">
+  <         Hero />
+          </div>
 
           <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
