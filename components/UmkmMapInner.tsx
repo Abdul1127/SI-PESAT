@@ -65,17 +65,17 @@ export default function UmkmMapInner({ umkm }: { umkm: any[] }) {
   return (
     <section
       id="peta"
-      className="relative z-0 mt-10 scroll-mt-28 rounded-3xl border bg-white p-4 shadow-sm md:p-5"
+      className="relative z-0 mt-10 min-w-0 scroll-mt-28 overflow-hidden rounded-3xl border bg-white p-4 shadow-sm md:p-5"
     >
       <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-        <div>
+        <div className="min-w-0">
           <p className="text-sm font-bold uppercase tracking-wide text-blue-600">
             Peta Persebaran
           </p>
           <h2 className="mt-2 text-2xl font-extrabold text-gray-950 md:text-3xl">
             Lokasi UMKM
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm leading-6 text-gray-600">
             Lihat persebaran UMKM berdasarkan titik koordinat yang tersedia.
           </p>
         </div>
@@ -88,31 +88,53 @@ export default function UmkmMapInner({ umkm }: { umkm: any[] }) {
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <button
-          onClick={() => setSelectedCategory("semua")}
-          className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium ${
-            selectedCategory === "semua"
-              ? "bg-blue-600 text-white"
-              : "border bg-white text-gray-700 hover:bg-gray-50"
-          }`}
+      <div className="mb-4">
+        <select
+          value={selectedCategory}
+          onChange={(e) => setSelectedCategory(e.target.value)}
+          className="block w-full rounded-xl border bg-white px-4 py-3 text-sm text-gray-700 outline-none md:hidden"
         >
-          Semua
-        </button>
+          <option value="semua">Semua sektor ({validUmkm.length})</option>
+          {categories.map((category: any) => {
+            const count = validUmkm.filter(
+              (item) => item.categories?.slug === category.slug
+            ).length;
 
-        {categories.map((category: any) => (
+            return (
+              <option key={category.slug} value={category.slug}>
+                {category.name} ({count})
+              </option>
+            );
+          })}
+        </select>
+
+        <div className="hidden flex-wrap gap-2 md:flex">
           <button
-            key={category.slug}
-            onClick={() => setSelectedCategory(category.slug)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium ${
-              selectedCategory === category.slug
+            onClick={() => setSelectedCategory("semua")}
+            className={`rounded-full px-4 py-2 text-sm font-medium ${
+              selectedCategory === "semua"
                 ? "bg-blue-600 text-white"
                 : "border bg-white text-gray-700 hover:bg-gray-50"
             }`}
           >
-            {category.name}
+            Semua
           </button>
-        ))}
+
+          {categories.map((category: any) => (
+            <button
+              key={category.slug}
+              onClick={() => setSelectedCategory(category.slug)}
+              className={`max-w-[260px] truncate rounded-full px-4 py-2 text-sm font-medium ${
+                selectedCategory === category.slug
+                  ? "bg-blue-600 text-white"
+                  : "border bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+              title={category.name}
+            >
+              {category.name}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="relative z-0 overflow-hidden rounded-3xl border bg-slate-100">
@@ -149,9 +171,7 @@ export default function UmkmMapInner({ umkm }: { umkm: any[] }) {
 
                   <p className="mt-2 flex gap-1 text-sm text-gray-600">
                     <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
-                    <span>
-                      {item.short_address ?? "Alamat belum tersedia"}
-                    </span>
+                    <span>{item.short_address ?? "Alamat belum tersedia"}</span>
                   </p>
 
                   <div className="mt-3 rounded-xl bg-blue-50 p-3">
