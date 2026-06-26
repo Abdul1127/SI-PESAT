@@ -67,7 +67,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
               placeholder="Cari UMKM..."
               value={search}
               onChange={(e) => changeSearch(e.target.value)}
-              className="w-full min-w-0 rounded-xl border bg-gray-50 py-3 pl-11 pr-4 text-sm text-gray-900 outline-none focus:border-blue-500"
+              className="w-full min-w-0 rounded-xl border bg-gray-50 py-3 pl-11 pr-4 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-blue-500"
             />
           </div>
 
@@ -76,7 +76,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
           <select
             value={selectedCategory}
             onChange={(e) => changeCategory(e.target.value)}
-            className="block w-full rounded-xl border bg-white px-4 py-3 text-sm text-gray-700 outline-none lg:hidden"
+            className="block w-full rounded-xl border bg-white px-4 py-3 text-sm text-gray-900 outline-none lg:hidden"
           >
             <option value="semua">Semua kategori ({umkm.length})</option>
             {categories.map((category: any) => {
@@ -135,25 +135,31 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
 
           <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
             <div className="flex items-center justify-between rounded-2xl bg-blue-50 p-3">
-              <span className="flex items-center gap-2 text-sm text-gray-700">
-                <Store className="h-4 w-4 text-blue-600" /> Total
+              <span className="flex items-center gap-2 text-sm text-gray-800">
+                <Store className="h-4 w-4 text-blue-600" />
+                Total
               </span>
-              <b className="text-gray-900">{umkm.length}</b>
+              <span className="font-bold !text-gray-950">{umkm.length}</span>
             </div>
 
             <div className="flex items-center justify-between rounded-2xl bg-green-50 p-3">
-              <span className="flex items-center gap-2 text-sm text-gray-700">
-                <MapPin className="h-4 w-4 text-green-600" /> Tampil
+              <span className="flex items-center gap-2 text-sm text-gray-800">
+                <MapPin className="h-4 w-4 text-green-600" />
+                Tampil
               </span>
-              <b>{filteredUmkm.length}</b>
-              <b>{categories.length}</b>
+              <span className="font-bold !text-gray-950">
+                {filteredUmkm.length}
+              </span>
             </div>
 
             <div className="flex items-center justify-between rounded-2xl bg-indigo-50 p-3">
-              <span className="flex items-center gap-2 text-sm text-gray-700">
-                <Tags className="h-4 w-4 text-indigo-600" /> Sektor
+              <span className="flex items-center gap-2 text-sm text-gray-800">
+                <Tags className="h-4 w-4 text-indigo-600" />
+                Sektor
               </span>
-              <b>{categories.length}</b>
+              <span className="font-bold !text-gray-950">
+                {categories.length}
+              </span>
             </div>
           </div>
         </div>
@@ -208,9 +214,9 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
                     href={item.gmaps_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700 md:w-12 md:hover:w-32"
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 text-sm font-semibold !text-white hover:bg-blue-700 md:w-12 md:hover:w-32"
                   >
-                    <Navigation className="h-5 w-5" />
+                    <Navigation className="h-5 w-5 text-white" />
                     <span className="md:hidden">Lihat Lokasi</span>
                   </a>
                 )}
@@ -245,4 +251,4 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
       </section>
     </div>
   );
-} 
+}
