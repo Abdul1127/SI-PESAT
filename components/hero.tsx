@@ -9,7 +9,7 @@ export default function Hero() {
         {/* KIRI */}
         <div>
           <span className="inline-flex items-center rounded-full bg-blue-100 px-4 py-2 text-sm font-semibold text-blue-700">
-            📍 Website Direktori UMKM Kelurahan
+            📍 SI PESAT - KKN Cantik UB 2026
           </span>
 
           <h1 className="mt-6 text-4xl font-black leading-tight text-gray-900 md:text-6xl">

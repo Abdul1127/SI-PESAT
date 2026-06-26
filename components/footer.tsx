@@ -6,7 +6,7 @@ export default function Footer() {
           <div>
             <p className="text-lg font-bold text-gray-900">SI PESAT</p>
             <p className="mt-1 text-sm text-gray-600">
-              Sistem Informasi Pendataan dan Promosi UMKM.
+              Sistem Informasi Pelaku Ekraf Sukun Terpadu
             </p>
           </div>
 
