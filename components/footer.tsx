@@ -11,7 +11,7 @@ export default function Footer() {
           </div>
 
           <div className="text-sm text-gray-500 md:text-right">
-            <p>Program KKN Mahasiswa</p>
+            <p>Program KKN Cantik UB 2026</p>
             <p>© 2026 SI PESAT. All rights reserved.</p>
           </div>
         </div>

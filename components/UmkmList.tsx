@@ -138,7 +138,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
               <span className="flex items-center gap-2 text-sm text-gray-700">
                 <Store className="h-4 w-4 text-blue-600" /> Total
               </span>
-              <b>{umkm.length}</b>
+              <b className="text-gray-900">{umkm.length}</b>
             </div>
 
             <div className="flex items-center justify-between rounded-2xl bg-green-50 p-3">
@@ -146,6 +146,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
                 <MapPin className="h-4 w-4 text-green-600" /> Tampil
               </span>
               <b>{filteredUmkm.length}</b>
+              <b>{categories.length}</b>
             </div>
 
             <div className="flex items-center justify-between rounded-2xl bg-indigo-50 p-3">
@@ -244,4 +245,4 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
       </section>
     </div>
   );
-}
+} 

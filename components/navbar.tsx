@@ -14,7 +14,7 @@ export default function Navbar() {
             <p className="text-sm font-bold leading-none text-gray-900 md:text-base">
               SI PESAT
             </p>
-            <p className="text-xs text-gray-500">Direktori UMKM</p>
+            <p className="text-xs text-gray-500">Sistem Informasi Pelaku Ekraf Sukun Terpadu</p>
           </div>
         </Link>
 

@@ -156,7 +156,7 @@ export default function UmkmMapInner({ umkm }: { umkm: any[] }) {
               icon={markerIcon}
             >
               <Popup>
-                <div className="w-60">
+                <div className="w-60 text-gray-900">
                   <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                     <Store className="h-5 w-5" />
                   </div>
@@ -188,9 +188,9 @@ export default function UmkmMapInner({ umkm }: { umkm: any[] }) {
                       href={item.gmaps_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+                      className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold !text-white hover:bg-blue-700"
                     >
-                      <Navigation className="h-4 w-4" />
+                      <Navigation className="h-4 w-4 text-white" />
                       Buka Google Maps
                     </a>
                   )}

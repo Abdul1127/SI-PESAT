@@ -11,7 +11,7 @@ export default function AboutSection() {
           </p>
 
           <h2 className="mt-3 text-3xl font-bold leading-tight text-gray-950">
-            Sistem Informasi Pendataan dan Promosi UMKM
+            Sistem Informasi Pelaku Ekraf Sukun Terpadu
           </h2>
 
           <p className="mt-4 leading-7 text-gray-600">

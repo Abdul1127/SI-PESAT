@@ -102,7 +102,7 @@ async function HomeContent() {
           <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
               <p className="text-sm font-bold uppercase tracking-wide text-blue-600">
-                Sistem Informasi Pelaku Ekraf Sukun Terpadu
+                Direktori UMKM
               </p>
               <h2
                 id="daftar-umkm"
