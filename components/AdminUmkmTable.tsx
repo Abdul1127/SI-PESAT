@@ -1,7 +1,8 @@
 "use client";
 
+import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function AdminUmkmTable({
@@ -16,9 +17,23 @@ export default function AdminUmkmTable({
   const [currentPage, setCurrentPage] = useState(1);
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [savingAdd, setSavingAdd] = useState(false);
   const [message, setMessage] = useState("");
 
   const [editItem, setEditItem] = useState<any | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  const emptyForm = {
+    nama_usaha: "",
+    alamat: "",
+    deskripsi: "",
+    sektor: "",
+    rt_rw: "",
+    latitude: "",
+    longitude: "",
+    gmaps_url: "",
+  };
+
   const [editForm, setEditForm] = useState({
     nama_usaha: "",
     alamat: "",
@@ -26,6 +41,8 @@ export default function AdminUmkmTable({
     longitude: "",
     gmaps_url: "",
   });
+
+  const [addForm, setAddForm] = useState(emptyForm);
 
   const itemsPerPage = 15;
 
@@ -74,6 +91,30 @@ export default function AdminUmkmTable({
     return Array.isArray(item.rowIds) && item.rowIds.length > 0
       ? item.rowIds
       : [item.id];
+  };
+
+  const parseCoordinate = (value: string) => {
+    if (value.trim() === "") return null;
+
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? "invalid" : parsed;
+  };
+
+  const buildSearchText = (payload: {
+    nama_usaha: string;
+    alamat: string;
+    deskripsi: string;
+    sektor: string;
+  }) => {
+    return [
+      payload.nama_usaha,
+      payload.alamat,
+      payload.deskripsi,
+      payload.sektor,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
   };
 
   const toggleStatus = async (item: any) => {
@@ -136,7 +177,18 @@ export default function AdminUmkmTable({
     setSavingEdit(false);
   };
 
-  const saveEdit = async (e: React.FormEvent) => {
+  const openAddModal = () => {
+    setAddForm(emptyForm);
+    setMessage("");
+    setShowAddModal(true);
+  };
+
+  const closeAddModal = () => {
+    setShowAddModal(false);
+    setSavingAdd(false);
+  };
+
+  const saveEdit = async (e: FormEvent) => {
     e.preventDefault();
 
     if (!editItem) return;
@@ -150,25 +202,16 @@ export default function AdminUmkmTable({
     setSavingEdit(true);
     setMessage("");
 
-    const latitudeValue =
-      editForm.latitude.trim() === "" ? null : Number(editForm.latitude);
+    const latitudeValue = parseCoordinate(editForm.latitude);
+    const longitudeValue = parseCoordinate(editForm.longitude);
 
-    const longitudeValue =
-      editForm.longitude.trim() === "" ? null : Number(editForm.longitude);
-
-    if (
-      editForm.latitude.trim() !== "" &&
-      Number.isNaN(Number(editForm.latitude))
-    ) {
+    if (latitudeValue === "invalid") {
       setMessage("Gagal menyimpan: latitude harus berupa angka.");
       setSavingEdit(false);
       return;
     }
 
-    if (
-      editForm.longitude.trim() !== "" &&
-      Number.isNaN(Number(editForm.longitude))
-    ) {
+    if (longitudeValue === "invalid") {
       setMessage("Gagal menyimpan: longitude harus berupa angka.");
       setSavingEdit(false);
       return;
@@ -198,6 +241,70 @@ export default function AdminUmkmTable({
     onRefresh?.();
   };
 
+  const saveAdd = async (e: FormEvent) => {
+    e.preventDefault();
+
+    const namaUsaha = addForm.nama_usaha.trim();
+    const alamat = addForm.alamat.trim();
+    const deskripsi = addForm.deskripsi.trim();
+    const sektor = addForm.sektor.trim();
+    const rtRw = addForm.rt_rw.trim();
+    const gmapsUrl = addForm.gmaps_url.trim();
+
+    if (!namaUsaha) {
+      setMessage("Gagal menambah data: nama usaha wajib diisi.");
+      return;
+    }
+
+    const latitudeValue = parseCoordinate(addForm.latitude);
+    const longitudeValue = parseCoordinate(addForm.longitude);
+
+    if (latitudeValue === "invalid") {
+      setMessage("Gagal menambah data: latitude harus berupa angka.");
+      return;
+    }
+
+    if (longitudeValue === "invalid") {
+      setMessage("Gagal menambah data: longitude harus berupa angka.");
+      return;
+    }
+
+    setSavingAdd(true);
+    setMessage("");
+
+    const insertPayload = {
+      nama_usaha: namaUsaha,
+      alamat: alamat === "" ? null : alamat,
+      deskripsi: deskripsi === "" ? null : deskripsi,
+      sektor: sektor === "" ? null : sektor,
+      rt_rw: rtRw === "" ? null : rtRw,
+      latitude: latitudeValue,
+      longitude: longitudeValue,
+      gmaps_url: gmapsUrl === "" ? null : gmapsUrl,
+      search_text: buildSearchText({
+        nama_usaha: namaUsaha,
+        alamat,
+        deskripsi,
+        sektor,
+      }),
+      is_active: true,
+    };
+
+    const { error } = await supabase.from("data 2025").insert(insertPayload);
+
+    if (error) {
+      setMessage(`Gagal menambah data: ${error.message}`);
+      setSavingAdd(false);
+      return;
+    }
+
+    setMessage(`"${namaUsaha}" berhasil ditambahkan.`);
+    setSavingAdd(false);
+    setShowAddModal(false);
+    setAddForm(emptyForm);
+    onRefresh?.();
+  };
+
   return (
     <>
       <div className="rounded-3xl border bg-white shadow-sm">
@@ -206,11 +313,21 @@ export default function AdminUmkmTable({
             <div>
               <p className="text-lg font-bold text-gray-950">Data UMKM</p>
               <p className="mt-1 text-sm text-gray-600">
-                Cari, pantau status, dan kelola data UMKM SI PESAT.
+                Cari, pantau status, tambah data baru, dan kelola data UMKM SI
+                PESAT.
               </p>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={openAddModal}
+                className="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold !text-white hover:bg-blue-700"
+              >
+                <Plus className="h-4 w-4 text-white" />
+                Tambah Data
+              </button>
+
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
@@ -416,6 +533,202 @@ export default function AdminUmkmTable({
           </div>
         </div>
       </div>
+
+      {showAddModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4 py-6">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-wide text-blue-600">
+                  Tambah Data
+                </p>
+                <h2 className="mt-1 text-2xl font-extrabold text-gray-950">
+                  Tambah UMKM Baru
+                </h2>
+                <p className="mt-2 text-sm text-gray-600">
+                  Data baru akan otomatis berstatus aktif dan langsung muncul di
+                  halaman publik.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeAddModal}
+                className="rounded-xl bg-gray-100 p-2 text-gray-600 hover:bg-gray-200"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={saveAdd} className="space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-gray-900">
+                  Nama Usaha <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={addForm.nama_usaha}
+                  onChange={(e) =>
+                    setAddForm((prev) => ({
+                      ...prev,
+                      nama_usaha: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-gray-900">
+                  Alamat
+                </label>
+                <textarea
+                  rows={3}
+                  value={addForm.alamat}
+                  onChange={(e) =>
+                    setAddForm((prev) => ({
+                      ...prev,
+                      alamat: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-gray-900">
+                  Deskripsi / Layanan
+                </label>
+                <textarea
+                  rows={3}
+                  value={addForm.deskripsi}
+                  onChange={(e) =>
+                    setAddForm((prev) => ({
+                      ...prev,
+                      deskripsi: e.target.value,
+                    }))
+                  }
+                  placeholder="Contoh: jual pulsa, paket data, dan aksesoris HP"
+                  className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    Sektor
+                  </label>
+                  <input
+                    type="text"
+                    value={addForm.sektor}
+                    onChange={(e) =>
+                      setAddForm((prev) => ({
+                        ...prev,
+                        sektor: e.target.value,
+                      }))
+                    }
+                    placeholder="Contoh: G. Perdagangan Besar dan Eceran"
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    RT/RW
+                  </label>
+                  <input
+                    type="text"
+                    value={addForm.rt_rw}
+                    onChange={(e) =>
+                      setAddForm((prev) => ({
+                        ...prev,
+                        rt_rw: e.target.value,
+                      }))
+                    }
+                    placeholder="Contoh: RT 01 RW 02"
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    Latitude
+                  </label>
+                  <input
+                    type="text"
+                    value={addForm.latitude}
+                    onChange={(e) =>
+                      setAddForm((prev) => ({
+                        ...prev,
+                        latitude: e.target.value,
+                      }))
+                    }
+                    placeholder="-7.9666204"
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    Longitude
+                  </label>
+                  <input
+                    type="text"
+                    value={addForm.longitude}
+                    onChange={(e) =>
+                      setAddForm((prev) => ({
+                        ...prev,
+                        longitude: e.target.value,
+                      }))
+                    }
+                    placeholder="112.6326321"
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-gray-900">
+                  Google Maps URL
+                </label>
+                <input
+                  type="url"
+                  value={addForm.gmaps_url}
+                  onChange={(e) =>
+                    setAddForm((prev) => ({
+                      ...prev,
+                      gmaps_url: e.target.value,
+                    }))
+                  }
+                  placeholder="https://maps.app.goo.gl/..."
+                  className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeAddModal}
+                  className="rounded-2xl border px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50"
+                >
+                  Batal
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={savingAdd}
+                  className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold !text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {savingAdd ? "Menyimpan..." : "Tambah Data"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {editItem && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4 py-6">
