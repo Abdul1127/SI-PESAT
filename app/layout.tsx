@@ -1,24 +1,53 @@
-import "leaflet/dist/leaflet.css";
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
-import { ThemeProvider } from "next-themes";
+import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
-const defaultUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : "http://localhost:3000";
-
 export const metadata: Metadata = {
-  metadataBase: new URL(defaultUrl),
-  title: "Next.js and Supabase Starter Kit",
-  description: "The fastest way to build apps with Next.js and Supabase",
+  title: "SI PESAT",
+  description:
+    "SI PESAT adalah Sistem Informasi Pendataan dan Promosi UMKM untuk membantu masyarakat menemukan UMKM lokal dengan lebih mudah.",
+  applicationName: "SI PESAT",
+  keywords: [
+    "SI PESAT",
+    "UMKM",
+    "Direktori UMKM",
+    "Kelurahan",
+    "Promosi UMKM",
+    "Pendataan UMKM",
+  ],
+  authors: [{ name: "Tim KKN SI PESAT" }],
+  creator: "Tim KKN SI PESAT",
+  publisher: "Tim KKN SI PESAT",
+  icons: {
+    icon: "/logo-sipesat.png",
+    shortcut: "/logo-sipesat.png",
+    apple: "/logo-sipesat.png",
+  },
+  openGraph: {
+    title: "SI PESAT",
+    description:
+      "Sistem Informasi Pendataan dan Promosi UMKM untuk membantu masyarakat menemukan UMKM lokal.",
+    url: "https://si-pesat-theta.vercel.app",
+    siteName: "SI PESAT",
+    images: [
+      {
+        url: "/logo-sipesat.png",
+        width: 512,
+        height: 512,
+        alt: "Logo SI PESAT",
+      },
+    ],
+    locale: "id_ID",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "SI PESAT",
+    description:
+      "Sistem Informasi Pendataan dan Promosi UMKM untuk membantu masyarakat menemukan UMKM lokal.",
+    images: ["/logo-sipesat.png"],
+  },
 };
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  display: "swap",
-  subsets: ["latin"],
-});
 
 export default function RootLayout({
   children,
@@ -26,17 +55,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.className} antialiased`}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-        </ThemeProvider>
-      </body>
+    <html lang="id">
+      <body>{children}</body>
     </html>
   );
 }
