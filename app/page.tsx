@@ -37,6 +37,7 @@ async function HomeContent() {
       rt_rw,
       gmaps_url
     `)
+    .eq("is_active", true)
     .order("id", { ascending: true });
 
   const rawUmkm =
