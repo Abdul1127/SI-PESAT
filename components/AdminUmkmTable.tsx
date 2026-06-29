@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Plus, Search, X } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -19,6 +19,7 @@ export default function AdminUmkmTable({
   const [savingEdit, setSavingEdit] = useState(false);
   const [savingAdd, setSavingAdd] = useState(false);
   const [message, setMessage] = useState("");
+  const tableTopRef = useRef<HTMLDivElement | null>(null);
 
   const [editItem, setEditItem] = useState<any | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -83,9 +84,20 @@ export default function AdminUmkmTable({
     setCurrentPage(1);
   };
 
-  const goToPage = (page: number) => {
-    setCurrentPage(Math.min(Math.max(page, 1), totalPages));
-  };
+  const scrollToTableTop = () => {
+  tableTopRef.current?.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
+};
+
+const goToPage = (page: number) => {
+  setCurrentPage(Math.min(Math.max(page, 1), totalPages));
+
+  setTimeout(() => {
+    scrollToTableTop();
+  }, 50);
+};
 
   const getTargetIds = (item: any) => {
     return Array.isArray(item.rowIds) && item.rowIds.length > 0
@@ -307,7 +319,10 @@ export default function AdminUmkmTable({
 
   return (
     <>
-      <div className="rounded-3xl border bg-white shadow-sm">
+      <div
+        ref={tableTopRef}
+        className="scroll-mt-28 rounded-3xl border bg-white shadow-sm"
+        >
         <div className="border-b p-5">
           <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
             <div>
