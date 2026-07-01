@@ -5,6 +5,22 @@ import { useMemo, useRef, useState } from "react";
 import { Plus, Search, X } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
+const CATEGORY_OPTIONS = [
+  "Kuliner",
+  "Fashion",
+  "Perdagangan Umum",
+  "Penyedia Jasa",
+  "Percetakan & Fotokopi",
+  "Kreatif & Digital",
+  "Kriya / Kerajinan",
+  "Kesehatan",
+  "Pendidikan",
+  "Akomodasi",
+  "Transportasi",
+  "Kecantikan & Perawatan",
+  "Lainnya / Perlu Review",
+];
+
 export default function AdminUmkmTable({
   data,
   onRefresh,
@@ -14,11 +30,13 @@ export default function AdminUmkmTable({
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("semua");
+  const [ekrafFilter, setEkrafFilter] = useState("semua");
   const [currentPage, setCurrentPage] = useState(1);
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [savingAdd, setSavingAdd] = useState(false);
   const [message, setMessage] = useState("");
+
   const tableTopRef = useRef<HTMLDivElement | null>(null);
 
   const [editItem, setEditItem] = useState<any | null>(null);
@@ -28,7 +46,8 @@ export default function AdminUmkmTable({
     nama_usaha: "",
     alamat: "",
     deskripsi: "",
-    sektor: "",
+    kategori_umkm: "",
+    is_ekraf: false,
     rt_rw: "",
     latitude: "",
     longitude: "",
@@ -38,6 +57,8 @@ export default function AdminUmkmTable({
   const [editForm, setEditForm] = useState({
     nama_usaha: "",
     alamat: "",
+    kategori_umkm: "",
+    is_ekraf: false,
     latitude: "",
     longitude: "",
     gmaps_url: "",
@@ -54,6 +75,8 @@ export default function AdminUmkmTable({
       const matchSearch =
         item.nama_usaha?.toLowerCase().includes(keyword) ||
         item.alamat?.toLowerCase().includes(keyword) ||
+        item.kategori_umkm?.toLowerCase().includes(keyword) ||
+        item.old_sector?.toLowerCase().includes(keyword) ||
         item.descriptions?.some((desc: string) =>
           desc.toLowerCase().includes(keyword)
         ) ||
@@ -66,13 +89,25 @@ export default function AdminUmkmTable({
         (statusFilter === "aktif" && item.is_active === true) ||
         (statusFilter === "nonaktif" && item.is_active === false);
 
-      return matchSearch && matchStatus;
+      const matchEkraf =
+        ekrafFilter === "semua" ||
+        (ekrafFilter === "ekraf" && item.is_ekraf === true) ||
+        (ekrafFilter === "nonekraf" && item.is_ekraf !== true);
+
+      return matchSearch && matchStatus && matchEkraf;
     });
-  }, [data, search, statusFilter]);
+  }, [data, search, statusFilter, ekrafFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentData = filteredData.slice(startIndex, startIndex + itemsPerPage);
+
+  const scrollToTableTop = () => {
+    tableTopRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
 
   const changeSearch = (value: string) => {
     setSearch(value);
@@ -84,20 +119,18 @@ export default function AdminUmkmTable({
     setCurrentPage(1);
   };
 
-  const scrollToTableTop = () => {
-  tableTopRef.current?.scrollIntoView({
-    behavior: "smooth",
-    block: "start",
-  });
-};
+  const changeEkrafFilter = (value: string) => {
+    setEkrafFilter(value);
+    setCurrentPage(1);
+  };
 
-const goToPage = (page: number) => {
-  setCurrentPage(Math.min(Math.max(page, 1), totalPages));
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.min(Math.max(page, 1), totalPages));
 
-  setTimeout(() => {
-    scrollToTableTop();
-  }, 50);
-};
+    setTimeout(() => {
+      scrollToTableTop();
+    }, 50);
+  };
 
   const getTargetIds = (item: any) => {
     return Array.isArray(item.rowIds) && item.rowIds.length > 0
@@ -116,13 +149,13 @@ const goToPage = (page: number) => {
     nama_usaha: string;
     alamat: string;
     deskripsi: string;
-    sektor: string;
+    kategori_umkm: string;
   }) => {
     return [
       payload.nama_usaha,
       payload.alamat,
       payload.deskripsi,
-      payload.sektor,
+      payload.kategori_umkm,
     ]
       .filter(Boolean)
       .join(" ")
@@ -172,6 +205,8 @@ const goToPage = (page: number) => {
     setEditForm({
       nama_usaha: item.nama_usaha ?? "",
       alamat: item.alamat ?? "",
+      kategori_umkm: item.kategori_umkm ?? item.sectors?.[0]?.name ?? "",
+      is_ekraf: item.is_ekraf === true,
       latitude:
         item.latitude !== null && item.latitude !== undefined
           ? String(item.latitude)
@@ -229,11 +264,18 @@ const goToPage = (page: number) => {
       return;
     }
 
+    const kategoriUmkm =
+      editForm.kategori_umkm.trim() === ""
+        ? "Lainnya / Perlu Review"
+        : editForm.kategori_umkm.trim();
+
     const { error } = await supabase
       .from("data 2025")
       .update({
         nama_usaha: editForm.nama_usaha.trim(),
         alamat: editForm.alamat.trim(),
+        kategori_umkm: kategoriUmkm,
+        is_ekraf: editForm.is_ekraf,
         latitude: latitudeValue,
         longitude: longitudeValue,
         gmaps_url:
@@ -259,7 +301,10 @@ const goToPage = (page: number) => {
     const namaUsaha = addForm.nama_usaha.trim();
     const alamat = addForm.alamat.trim();
     const deskripsi = addForm.deskripsi.trim();
-    const sektor = addForm.sektor.trim();
+    const kategoriUmkm =
+      addForm.kategori_umkm.trim() === ""
+        ? "Lainnya / Perlu Review"
+        : addForm.kategori_umkm.trim();
     const rtRw = addForm.rt_rw.trim();
     const gmapsUrl = addForm.gmaps_url.trim();
 
@@ -288,7 +333,9 @@ const goToPage = (page: number) => {
       nama_usaha: namaUsaha,
       alamat: alamat === "" ? null : alamat,
       deskripsi: deskripsi === "" ? null : deskripsi,
-      sektor: sektor === "" ? null : sektor,
+      sektor: null,
+      kategori_umkm: kategoriUmkm,
+      is_ekraf: addForm.is_ekraf,
       rt_rw: rtRw === "" ? null : rtRw,
       latitude: latitudeValue,
       longitude: longitudeValue,
@@ -297,7 +344,7 @@ const goToPage = (page: number) => {
         nama_usaha: namaUsaha,
         alamat,
         deskripsi,
-        sektor,
+        kategori_umkm: kategoriUmkm,
       }),
       is_active: true,
     };
@@ -322,18 +369,18 @@ const goToPage = (page: number) => {
       <div
         ref={tableTopRef}
         className="scroll-mt-28 rounded-3xl border bg-white shadow-sm"
-        >
+      >
         <div className="border-b p-5">
           <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
             <div>
               <p className="text-lg font-bold text-gray-950">Data UMKM</p>
               <p className="mt-1 text-sm text-gray-600">
-                Cari, pantau status, tambah data baru, dan kelola data UMKM SI
-                PESAT.
+                Cari, tambah data baru, atur kategori UMKM, status ekraf, dan
+                status publikasi data.
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="flex flex-col gap-3 xl:flex-row">
               <button
                 type="button"
                 onClick={openAddModal}
@@ -350,7 +397,7 @@ const goToPage = (page: number) => {
                   value={search}
                   onChange={(e) => changeSearch(e.target.value)}
                   placeholder="Cari UMKM..."
-                  className="w-full rounded-2xl border bg-gray-50 py-3 pl-11 pr-4 text-sm text-gray-900 outline-none focus:border-blue-500 sm:w-72"
+                  className="w-full rounded-2xl border bg-gray-50 py-3 pl-11 pr-4 text-sm text-gray-900 outline-none focus:border-blue-500 xl:w-72"
                 />
               </div>
 
@@ -362,6 +409,16 @@ const goToPage = (page: number) => {
                 <option value="semua">Semua status</option>
                 <option value="aktif">Aktif</option>
                 <option value="nonaktif">Nonaktif</option>
+              </select>
+
+              <select
+                value={ekrafFilter}
+                onChange={(e) => changeEkrafFilter(e.target.value)}
+                className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+              >
+                <option value="semua">Semua jenis</option>
+                <option value="ekraf">Ekraf</option>
+                <option value="nonekraf">Non-Ekraf</option>
               </select>
             </div>
           </div>
@@ -393,11 +450,12 @@ const goToPage = (page: number) => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b bg-slate-50 text-gray-600">
                 <th className="px-5 py-4 font-semibold">Nama Usaha</th>
-                <th className="px-5 py-4 font-semibold">Sektor</th>
+                <th className="px-5 py-4 font-semibold">Kategori</th>
+                <th className="px-5 py-4 font-semibold">Ekraf</th>
                 <th className="px-5 py-4 font-semibold">Alamat</th>
                 <th className="px-5 py-4 font-semibold">Status</th>
                 <th className="px-5 py-4 font-semibold">Maps</th>
@@ -409,7 +467,7 @@ const goToPage = (page: number) => {
               {currentData.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-5 py-10 text-center text-gray-500"
                   >
                     Data tidak ditemukan.
@@ -425,7 +483,7 @@ const goToPage = (page: number) => {
 
                       {item.sectors.length > 1 && (
                         <p className="mt-1 text-xs font-semibold text-green-600">
-                          Multi layanan
+                          Multi kategori
                         </p>
                       )}
 
@@ -459,6 +517,24 @@ const goToPage = (page: number) => {
                           </span>
                         )}
                       </div>
+
+                      {item.old_sector && (
+                        <p className="mt-2 line-clamp-2 max-w-xs text-xs text-gray-400">
+                          Sektor lama: {item.old_sector}
+                        </p>
+                      )}
+                    </td>
+
+                    <td className="px-5 py-4 align-top">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          item.is_ekraf
+                            ? "bg-green-50 text-green-700"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {item.is_ekraf ? "Ekraf" : "Non-Ekraf"}
+                      </span>
                     </td>
 
                     <td className="max-w-sm px-5 py-4 align-top text-gray-600">
@@ -561,7 +637,7 @@ const goToPage = (page: number) => {
                   Tambah UMKM Baru
                 </h2>
                 <p className="mt-2 text-sm text-gray-600">
-                  Data baru akan otomatis berstatus aktif dan langsung muncul di
+                  Data baru otomatis berstatus aktif dan langsung muncul di
                   halaman publik.
                 </p>
               </div>
@@ -624,7 +700,7 @@ const goToPage = (page: number) => {
                       deskripsi: e.target.value,
                     }))
                   }
-                  placeholder="Contoh: jual pulsa, paket data, dan aksesoris HP"
+                  placeholder="Contoh: jasa laundry, perbaikan elektronik, jual makanan"
                   className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
                 />
               </div>
@@ -632,39 +708,63 @@ const goToPage = (page: number) => {
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-gray-900">
-                    Sektor
+                    Kategori UMKM
                   </label>
-                  <input
-                    type="text"
-                    value={addForm.sektor}
+                  <select
+                    value={addForm.kategori_umkm}
                     onChange={(e) =>
                       setAddForm((prev) => ({
                         ...prev,
-                        sektor: e.target.value,
+                        kategori_umkm: e.target.value,
                       }))
                     }
-                    placeholder="Contoh: G. Perdagangan Besar dan Eceran"
                     className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-                  />
+                  >
+                    <option value="">Pilih kategori</option>
+                    {CATEGORY_OPTIONS.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-gray-900">
-                    RT/RW
+                    Status Ekraf
                   </label>
-                  <input
-                    type="text"
-                    value={addForm.rt_rw}
+                  <select
+                    value={addForm.is_ekraf ? "true" : "false"}
                     onChange={(e) =>
                       setAddForm((prev) => ({
                         ...prev,
-                        rt_rw: e.target.value,
+                        is_ekraf: e.target.value === "true",
                       }))
                     }
-                    placeholder="Contoh: RT 01 RW 02"
                     className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-                  />
+                  >
+                    <option value="false">Non-Ekraf</option>
+                    <option value="true">Ekraf</option>
+                  </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-gray-900">
+                  RT/RW
+                </label>
+                <input
+                  type="text"
+                  value={addForm.rt_rw}
+                  onChange={(e) =>
+                    setAddForm((prev) => ({
+                      ...prev,
+                      rt_rw: e.target.value,
+                    }))
+                  }
+                  placeholder="Contoh: RT 01 RW 02"
+                  className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                />
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -757,8 +857,8 @@ const goToPage = (page: number) => {
                   {editItem.nama_usaha}
                 </h2>
                 <p className="mt-2 text-sm text-gray-600">
-                  Perubahan akan diterapkan ke semua baris data yang tergabung
-                  pada UMKM ini.
+                  Perubahan berlaku untuk semua baris data yang tergabung pada
+                  UMKM ini.
                 </p>
               </div>
 
@@ -774,8 +874,8 @@ const goToPage = (page: number) => {
             {editItem.rowIds?.length > 1 && (
               <div className="mb-5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 Data ini menggabungkan {editItem.rowIds.length} baris. Edit
-                nama, alamat, koordinat, dan Google Maps akan berlaku untuk
-                semuanya.
+                nama, alamat, kategori, status ekraf, koordinat, dan Google Maps
+                akan berlaku untuk semuanya.
               </div>
             )}
 
@@ -814,6 +914,59 @@ const goToPage = (page: number) => {
                   className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
                 />
               </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    Kategori UMKM
+                  </label>
+                  <select
+                    value={editForm.kategori_umkm}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        kategori_umkm: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                  >
+                    <option value="">Pilih kategori</option>
+                    {CATEGORY_OPTIONS.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    Status Ekraf
+                  </label>
+                  <select
+                    value={editForm.is_ekraf ? "true" : "false"}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        is_ekraf: e.target.value === "true",
+                      }))
+                    }
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                  >
+                    <option value="false">Non-Ekraf</option>
+                    <option value="true">Ekraf</option>
+                  </select>
+                </div>
+              </div>
+
+              {editItem.old_sector && (
+                <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-gray-600">
+                  <span className="font-semibold text-gray-900">
+                    Sektor lama:
+                  </span>{" "}
+                  {editItem.old_sector}
+                </div>
+              )}
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div>

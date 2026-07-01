@@ -17,7 +17,13 @@ function slugify(text: string) {
 
 export default function Home() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-50 p-8">Memuat SI PESAT...</div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 p-8 text-gray-900">
+          Memuat SI PESAT...
+        </div>
+      }
+    >
       <HomeContent />
     </Suspense>
   );
@@ -32,16 +38,26 @@ async function HomeContent() {
       alamat,
       deskripsi,
       sektor,
+      kategori_umkm,
+      is_ekraf,
       latitude,
       longitude,
       rt_rw,
-      gmaps_url
+      gmaps_url,
+      is_active
     `)
     .eq("is_active", true)
     .order("id", { ascending: true });
 
   const rawUmkm =
     data?.map((item: any) => {
+      const kategoriUtama =
+        item.kategori_umkm && item.kategori_umkm.trim() !== ""
+          ? item.kategori_umkm
+          : item.sektor && item.sektor.trim() !== ""
+            ? item.sektor
+            : "Tanpa kategori";
+
       const mapsUrl =
         item.gmaps_url && item.gmaps_url.trim() !== ""
           ? item.gmaps_url
@@ -60,17 +76,23 @@ async function HomeContent() {
         latitude: item.latitude,
         longitude: item.longitude,
         gmaps_url: mapsUrl,
+
+        kategori_umkm: item.kategori_umkm,
+        old_sector: item.sektor,
+        is_ekraf: item.is_ekraf,
+
         categories: {
-          id: item.sektor,
-          name: item.sektor ?? "Tanpa sektor",
-          slug: slugify(item.sektor ?? "tanpa-sektor"),
+          id: kategoriUtama,
+          name: kategoriUtama,
+          slug: slugify(kategoriUtama),
         },
-        sectors: item.sektor
+
+        sectors: kategoriUtama
           ? [
               {
-                id: item.sektor,
-                name: item.sektor,
-                slug: slugify(item.sektor),
+                id: kategoriUtama,
+                name: kategoriUtama,
+                slug: slugify(kategoriUtama),
               },
             ]
           : [],
@@ -80,12 +102,19 @@ async function HomeContent() {
   const grouped = new Map<string, any>();
 
   for (const item of rawUmkm) {
-    const key = `${item.business_name?.toLowerCase().trim()}|${item.address?.toLowerCase().trim()}`;
+    const nameKey = item.business_name?.toLowerCase().trim() ?? "";
+    const addressKey = item.address?.toLowerCase().trim() ?? "";
+    const key = `${nameKey}|${addressKey}`;
 
     if (!grouped.has(key)) {
-      grouped.set(key, { ...item });
+      grouped.set(key, {
+        ...item,
+        rowIds: [item.id],
+      });
     } else {
       const current = grouped.get(key);
+
+      current.rowIds.push(item.id);
 
       for (const sector of item.sectors) {
         if (!current.sectors.some((s: any) => s.slug === sector.slug)) {
@@ -99,6 +128,22 @@ async function HomeContent() {
         }
       }
 
+      if (!current.gmaps_url && item.gmaps_url) {
+        current.gmaps_url = item.gmaps_url;
+      }
+
+      if (!current.latitude && item.latitude) {
+        current.latitude = item.latitude;
+      }
+
+      if (!current.longitude && item.longitude) {
+        current.longitude = item.longitude;
+      }
+
+      if (current.is_ekraf !== true && item.is_ekraf === true) {
+        current.is_ekraf = true;
+      }
+
       current.description = current.descriptions.join(", ");
     }
   }
@@ -109,6 +154,7 @@ async function HomeContent() {
     return (
       <>
         <Navbar />
+
         <main className="min-h-screen bg-slate-50 px-6 py-8">
           <section className="mx-auto max-w-6xl">
             <div className="rounded-3xl border bg-white p-8 shadow-sm">
@@ -117,6 +163,7 @@ async function HomeContent() {
             </div>
           </section>
         </main>
+
         <Footer />
         <ScrollToTopButton />
       </>
@@ -133,17 +180,22 @@ async function HomeContent() {
             <Hero />
           </div>
 
-          <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div
+            id="umkm"
+            className="mb-6 flex scroll-mt-28 flex-col justify-between gap-4 md:flex-row md:items-end"
+          >
             <div>
               <p className="text-sm font-bold uppercase tracking-wide text-blue-600">
                 Direktori UMKM
               </p>
+
               <h2
                 id="daftar-umkm"
                 className="mt-2 text-3xl font-extrabold text-gray-950"
               >
                 Jelajahi UMKM Terdaftar
               </h2>
+
               <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600">
                 Gunakan pencarian dan filter kategori untuk menemukan usaha
                 lokal yang sesuai dengan kebutuhan Anda.

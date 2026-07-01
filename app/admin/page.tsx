@@ -35,13 +35,15 @@ export default function AdminPage() {
     setErrorMessage("");
 
     const { data, error } = await supabase
-      .from("data 2025")
+      .from("data_2025")
       .select(`
         id,
         nama_usaha,
         alamat,
         deskripsi,
         sektor,
+        kategori_umkm,
+        is_ekraf,
         latitude,
         longitude,
         rt_rw,
@@ -82,8 +84,18 @@ export default function AdminPage() {
   };
 
   const dashboardData = useMemo(() => {
-    const sectors = Array.from(
-      new Set(rawData.map((item: any) => item.sektor).filter(Boolean))
+    const categories = Array.from(
+      new Set(
+        rawData
+          .map((item: any) =>
+            item.kategori_umkm && item.kategori_umkm.trim() !== ""
+              ? item.kategori_umkm
+              : item.sektor && item.sektor.trim() !== ""
+                ? item.sektor
+                : "Tanpa kategori"
+          )
+          .filter(Boolean)
+      )
     );
 
     const totalData = rawData.length;
@@ -94,6 +106,14 @@ export default function AdminPage() {
 
     const inactiveData = rawData.filter(
       (item: any) => item.is_active === false
+    ).length;
+
+    const ekrafData = rawData.filter(
+      (item: any) => item.is_ekraf === true
+    ).length;
+
+    const nonEkrafData = rawData.filter(
+      (item: any) => item.is_ekraf !== true
     ).length;
 
     const withMaps = rawData.filter(
@@ -111,10 +131,17 @@ export default function AdminPage() {
       const addressKey = item.alamat?.toLowerCase().trim() ?? "";
       const key = `${nameKey}|${addressKey}`;
 
-      const sector = item.sektor
+      const kategoriUtama =
+        item.kategori_umkm && item.kategori_umkm.trim() !== ""
+          ? item.kategori_umkm
+          : item.sektor && item.sektor.trim() !== ""
+            ? item.sektor
+            : "Tanpa kategori";
+
+      const category = kategoriUtama
         ? {
-            name: item.sektor,
-            slug: slugify(item.sektor),
+            name: kategoriUtama,
+            slug: slugify(kategoriUtama),
           }
         : null;
 
@@ -130,7 +157,12 @@ export default function AdminPage() {
           longitude: item.longitude,
           gmaps_url: item.gmaps_url,
           is_active: item.is_active,
-          sectors: sector ? [sector] : [],
+
+          kategori_umkm: item.kategori_umkm,
+          old_sector: item.sektor,
+          is_ekraf: item.is_ekraf,
+
+          sectors: category ? [category] : [],
           descriptions: item.deskripsi ? [item.deskripsi] : [],
         });
       } else {
@@ -139,10 +171,10 @@ export default function AdminPage() {
         current.rowIds.push(item.id);
 
         if (
-          sector &&
-          !current.sectors.some((s: any) => s.slug === sector.slug)
+          category &&
+          !current.sectors.some((s: any) => s.slug === category.slug)
         ) {
-          current.sectors.push(sector);
+          current.sectors.push(category);
         }
 
         if (item.deskripsi && !current.descriptions.includes(item.deskripsi)) {
@@ -161,8 +193,20 @@ export default function AdminPage() {
           current.longitude = item.longitude;
         }
 
+        if (!current.kategori_umkm && item.kategori_umkm) {
+          current.kategori_umkm = item.kategori_umkm;
+        }
+
+        if (!current.old_sector && item.sektor) {
+          current.old_sector = item.sektor;
+        }
+
         if (current.is_active !== false && item.is_active === false) {
           current.is_active = false;
+        }
+
+        if (current.is_ekraf !== true && item.is_ekraf === true) {
+          current.is_ekraf = true;
         }
       }
     }
@@ -175,16 +219,22 @@ export default function AdminPage() {
     const mapsPercentage =
       totalData > 0 ? Math.round((withMaps / totalData) * 100) : 0;
 
+    const ekrafPercentage =
+      totalData > 0 ? Math.round((ekrafData / totalData) * 100) : 0;
+
     return {
-      sectors,
+      categories,
       totalData,
       activeData,
       inactiveData,
+      ekrafData,
+      nonEkrafData,
       withMaps,
       withCoordinate,
       groupedData,
       coordinatePercentage,
       mapsPercentage,
+      ekrafPercentage,
     };
   }, [rawData]);
 
@@ -233,7 +283,8 @@ export default function AdminPage() {
             </h1>
 
             <p className="mt-2 text-sm text-gray-600">
-              Kelola dan pantau data UMKM berdasarkan data pendataan tahun 2025.
+              Kelola data UMKM, kategori baru, status ekraf, dan kelengkapan
+              lokasi.
             </p>
           </div>
 
@@ -292,9 +343,9 @@ export default function AdminPage() {
               <Tags className="h-5 w-5" />
             </div>
 
-            <p className="text-sm text-gray-500">Sektor</p>
+            <p className="text-sm text-gray-500">Kategori UMKM</p>
             <p className="mt-1 text-3xl font-extrabold text-gray-950">
-              {dashboardData.sectors.length}
+              {dashboardData.categories.length}
             </p>
           </div>
 
@@ -346,7 +397,7 @@ export default function AdminPage() {
                   </span>
                 </div>
 
-                <div className="h-3 overflow-hidden rounded-full bg-gray-100">
+                <div className="h-3 overflow-hidden rounded-full bg-green-100">
                   <div
                     className="h-full rounded-full bg-green-600"
                     style={{
@@ -361,20 +412,54 @@ export default function AdminPage() {
           <div className="rounded-3xl border bg-white p-5 shadow-sm">
             <div className="flex items-center gap-2 text-blue-600">
               <Store className="h-5 w-5" />
-              <p className="font-bold">Data Unik UMKM</p>
+              <p className="font-bold">Status Ekraf dan Data Unik</p>
             </div>
 
             <p className="mt-4 text-sm leading-6 text-gray-600">
-              Data yang memiliki nama usaha dan alamat sama digabung dalam
-              tampilan publik agar tidak muncul berulang. Database tetap
-              menyimpan seluruh baris asli.
+              Kategori publik memakai kolom kategori_umkm. Sektor lama tetap
+              disimpan sebagai arsip, sedangkan is_ekraf dipakai untuk
+              membedakan UMKM ekraf dan non-ekraf.
             </p>
 
-            <div className="mt-4 rounded-2xl bg-blue-50 p-4">
-              <p className="text-sm text-blue-700">UMKM unik tertampil</p>
-              <p className="text-3xl font-extrabold text-blue-900">
-                {dashboardData.groupedData.length}
-              </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl bg-blue-50 p-4">
+                <p className="text-sm text-blue-700">UMKM unik</p>
+                <p className="text-2xl font-extrabold text-blue-900">
+                  {dashboardData.groupedData.length}
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-green-50 p-4">
+                <p className="text-sm text-green-700">Ekraf</p>
+                <p className="text-2xl font-extrabold text-green-900">
+                  {dashboardData.ekrafData}
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-gray-100 p-4">
+                <p className="text-sm text-gray-600">Non-Ekraf</p>
+                <p className="text-2xl font-extrabold text-gray-900">
+                  {dashboardData.nonEkrafData}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="mb-1 flex justify-between text-sm">
+                <span className="text-gray-600">Proporsi ekraf</span>
+                <span className="font-semibold text-gray-900">
+                  {dashboardData.ekrafPercentage}%
+                </span>
+              </div>
+
+              <div className="h-3 overflow-hidden rounded-full bg-gray-100">
+                <div
+                  className="h-full rounded-full bg-green-600"
+                  style={{
+                    width: `${dashboardData.ekrafPercentage}%`,
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>
