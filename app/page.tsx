@@ -25,7 +25,7 @@ export default function Home() {
 
 async function HomeContent() {
   const { data, error } = await supabase
-    .from("data 2025")
+    .from("data_2025")
     .select(`
       id,
       nama_usaha,
