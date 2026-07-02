@@ -5,6 +5,8 @@ import { useMemo, useRef, useState } from "react";
 import { Plus, Search, X } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
+const TABLE_NAME = "data_2025";
+
 const CATEGORY_OPTIONS = [
   "Kuliner",
   "Aktivitas Jasa Lainnya",
@@ -19,18 +21,25 @@ const CATEGORY_OPTIONS = [
   "Penerbitan dan Percetakan",
   "Periklanan",
   "Pasar Barang Seni",
-  "Seni Rupa",
   "Fotografi",
   "Arsitektur",
   "Desain",
   "Film, Animasi, dan Video",
   "Musik",
-  "Seni Pertunjukkan",
+  "Seni Pertunjukan",
   "Televisi dan Radio",
-  "Permainan Interaktif (game)",
+  "Permainan Interaktif (Game)",
   "Aplikasi dan Pengembangan Teknologi",
-  "Transportasi"
+  "Transportasi",
 ];
+
+const RT_OPTIONS = Array.from({ length: 20 }, (_, index) =>
+  String(index + 1).padStart(3, "0")
+);
+
+const RW_OPTIONS = Array.from({ length: 10 }, (_, index) =>
+  String(index + 1).padStart(3, "0")
+);
 
 export default function AdminUmkmTable({
   data,
@@ -58,8 +67,10 @@ export default function AdminUmkmTable({
     alamat: "",
     deskripsi: "",
     kategori_umkm: "",
+    kategori_umkm_2: "",
     is_ekraf: false,
-    rt_rw: "",
+    rt: "",
+    rw: "",
     latitude: "",
     longitude: "",
     gmaps_url: "",
@@ -187,7 +198,7 @@ export default function AdminUmkmTable({
     setMessage("");
 
     const { error } = await supabase
-      .from("data_2025")
+      .from(TABLE_NAME)
       .update({
         is_active: nextStatus,
       })
@@ -281,7 +292,7 @@ export default function AdminUmkmTable({
         : editForm.kategori_umkm.trim();
 
     const { error } = await supabase
-      .from("data_2025")
+      .from(TABLE_NAME)
       .update({
         nama_usaha: editForm.nama_usaha.trim(),
         alamat: editForm.alamat.trim(),
@@ -312,11 +323,21 @@ export default function AdminUmkmTable({
     const namaUsaha = addForm.nama_usaha.trim();
     const alamat = addForm.alamat.trim();
     const deskripsi = addForm.deskripsi.trim();
-    const kategoriUmkm =
+
+    const kategoriUmkm1 =
       addForm.kategori_umkm.trim() === ""
         ? "Lainnya / Perlu Review"
         : addForm.kategori_umkm.trim();
-    const rtRw = addForm.rt_rw.trim();
+
+    const kategoriUmkm2 = addForm.kategori_umkm_2.trim();
+
+    const selectedCategories = [kategoriUmkm1, kategoriUmkm2]
+      .filter(Boolean)
+      .filter((value, index, array) => array.indexOf(value) === index);
+
+    const rtRw =
+      addForm.rt && addForm.rw ? `RT ${addForm.rt} RW ${addForm.rw}` : null;
+
     const gmapsUrl = addForm.gmaps_url.trim();
 
     if (!namaUsaha) {
@@ -340,14 +361,14 @@ export default function AdminUmkmTable({
     setSavingAdd(true);
     setMessage("");
 
-    const insertPayload = {
+    const insertPayloads = selectedCategories.map((category) => ({
       nama_usaha: namaUsaha,
       alamat: alamat === "" ? null : alamat,
       deskripsi: deskripsi === "" ? null : deskripsi,
       sektor: null,
-      kategori_umkm: kategoriUmkm,
+      kategori_umkm: category,
       is_ekraf: addForm.is_ekraf,
-      rt_rw: rtRw === "" ? null : rtRw,
+      rt_rw: rtRw,
       latitude: latitudeValue,
       longitude: longitudeValue,
       gmaps_url: gmapsUrl === "" ? null : gmapsUrl,
@@ -355,12 +376,12 @@ export default function AdminUmkmTable({
         nama_usaha: namaUsaha,
         alamat,
         deskripsi,
-        kategori_umkm: kategoriUmkm,
+        kategori_umkm: category,
       }),
       is_active: true,
-    };
+    }));
 
-    const { error } = await supabase.from("data_2025").insert(insertPayload);
+    const { error } = await supabase.from(TABLE_NAME).insert(insertPayloads);
 
     if (error) {
       setMessage(`Gagal menambah data: ${error.message}`);
@@ -368,7 +389,12 @@ export default function AdminUmkmTable({
       return;
     }
 
-    setMessage(`"${namaUsaha}" berhasil ditambahkan.`);
+    setMessage(
+      selectedCategories.length > 1
+        ? `"${namaUsaha}" berhasil ditambahkan dengan ${selectedCategories.length} kategori.`
+        : `"${namaUsaha}" berhasil ditambahkan.`
+    );
+
     setSavingAdd(false);
     setShowAddModal(false);
     setAddForm(emptyForm);
@@ -648,8 +674,9 @@ export default function AdminUmkmTable({
                   Tambah UMKM Baru
                 </h2>
                 <p className="mt-2 text-sm text-gray-600">
-                  Data baru otomatis berstatus aktif dan langsung muncul di
-                  halaman publik.
+                  Jika memilih dua kategori, sistem akan menyimpan dua baris
+                  data dan menampilkannya sebagai satu UMKM dengan dua badge
+                  kategori.
                 </p>
               </div>
 
@@ -711,7 +738,7 @@ export default function AdminUmkmTable({
                       deskripsi: e.target.value,
                     }))
                   }
-                  placeholder="Contoh: jasa laundry, perbaikan elektronik, jual makanan"
+                  placeholder="Contoh: jual bandeng presto dan jasa travel"
                   className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
                 />
               </div>
@@ -719,7 +746,7 @@ export default function AdminUmkmTable({
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-gray-900">
-                    Kategori UMKM
+                    Kategori UMKM 1
                   </label>
                   <select
                     value={addForm.kategori_umkm}
@@ -731,7 +758,7 @@ export default function AdminUmkmTable({
                     }
                     className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
                   >
-                    <option value="">Pilih kategori</option>
+                    <option value="">Pilih kategori utama</option>
                     {CATEGORY_OPTIONS.map((category) => (
                       <option key={category} value={category}>
                         {category}
@@ -742,40 +769,102 @@ export default function AdminUmkmTable({
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-gray-900">
-                    Status Ekraf
+                    Kategori UMKM 2{" "}
+                    <span className="text-gray-400">(opsional)</span>
                   </label>
                   <select
-                    value={addForm.is_ekraf ? "true" : "false"}
+                    value={addForm.kategori_umkm_2}
                     onChange={(e) =>
                       setAddForm((prev) => ({
                         ...prev,
-                        is_ekraf: e.target.value === "true",
+                        kategori_umkm_2: e.target.value,
                       }))
                     }
                     className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
                   >
-                    <option value="false">Non-Ekraf</option>
-                    <option value="true">Ekraf</option>
+                    <option value="">Tidak ada kategori kedua</option>
+                    {CATEGORY_OPTIONS.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
 
+              {addForm.kategori_umkm_2 &&
+                addForm.kategori_umkm_2 === addForm.kategori_umkm && (
+                  <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    Kategori kedua sama dengan kategori pertama. Sistem hanya
+                    akan menyimpan satu kategori.
+                  </div>
+                )}
+
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-900">
-                  RT/RW
+                  Status Ekraf
                 </label>
-                <input
-                  type="text"
-                  value={addForm.rt_rw}
+                <select
+                  value={addForm.is_ekraf ? "true" : "false"}
                   onChange={(e) =>
                     setAddForm((prev) => ({
                       ...prev,
-                      rt_rw: e.target.value,
+                      is_ekraf: e.target.value === "true",
                     }))
                   }
-                  placeholder="Contoh: RT 01 RW 02"
                   className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-                />
+                >
+                  <option value="false">Non-Ekraf</option>
+                  <option value="true">Ekraf</option>
+                </select>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    RT
+                  </label>
+                  <select
+                    value={addForm.rt}
+                    onChange={(e) =>
+                      setAddForm((prev) => ({
+                        ...prev,
+                        rt: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                  >
+                    <option value="">Pilih RT</option>
+                    {RT_OPTIONS.map((rt) => (
+                      <option key={rt} value={rt}>
+                        RT {rt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    RW
+                  </label>
+                  <select
+                    value={addForm.rw}
+                    onChange={(e) =>
+                      setAddForm((prev) => ({
+                        ...prev,
+                        rw: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                  >
+                    <option value="">Pilih RW</option>
+                    {RW_OPTIONS.map((rw) => (
+                      <option key={rw} value={rw}>
+                        RW {rw}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
