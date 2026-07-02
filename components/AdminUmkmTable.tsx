@@ -52,6 +52,7 @@ export default function AdminUmkmTable({
   const [statusFilter, setStatusFilter] = useState("semua");
   const [ekrafFilter, setEkrafFilter] = useState("semua");
   const [currentPage, setCurrentPage] = useState(1);
+
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [savingAdd, setSavingAdd] = useState(false);
@@ -76,17 +77,20 @@ export default function AdminUmkmTable({
     gmaps_url: "",
   };
 
+  const [addForm, setAddForm] = useState(emptyForm);
+
   const [editForm, setEditForm] = useState({
     nama_usaha: "",
     alamat: "",
     kategori_umkm: "",
+    kategori_umkm_2: "",
     is_ekraf: false,
+    rt: "",
+    rw: "",
     latitude: "",
     longitude: "",
     gmaps_url: "",
   });
-
-  const [addForm, setAddForm] = useState(emptyForm);
 
   const itemsPerPage = 15;
 
@@ -167,6 +171,30 @@ export default function AdminUmkmTable({
     return Number.isNaN(parsed) ? "invalid" : parsed;
   };
 
+  const parseRtRw = (value: string | null | undefined) => {
+    if (!value) {
+      return {
+        rt: "",
+        rw: "",
+      };
+    }
+
+    const rtMatch = value.match(/RT\s*0?(\d+)/i);
+    const rwMatch = value.match(/RW\s*0?(\d+)/i);
+
+    return {
+      rt: rtMatch ? rtMatch[1].padStart(3, "0") : "",
+      rw: rwMatch ? rwMatch[1].padStart(3, "0") : "",
+    };
+  };
+
+  const buildRtRw = (rt: string, rw: string) => {
+    if (!rt && !rw) return null;
+    if (rt && rw) return `RT ${rt} RW ${rw}`;
+    if (rt) return `RT ${rt}`;
+    return `RW ${rw}`;
+  };
+
   const buildSearchText = (payload: {
     nama_usaha: string;
     alamat: string;
@@ -220,15 +248,31 @@ export default function AdminUmkmTable({
     onRefresh?.();
   };
 
+  const openAddModal = () => {
+    setAddForm(emptyForm);
+    setMessage("");
+    setShowAddModal(true);
+  };
+
+  const closeAddModal = () => {
+    setShowAddModal(false);
+    setSavingAdd(false);
+  };
+
   const openEditModal = (item: any) => {
     setEditItem(item);
     setMessage("");
 
+    const parsedRtRw = parseRtRw(item.rt_rw);
+
     setEditForm({
       nama_usaha: item.nama_usaha ?? "",
       alamat: item.alamat ?? "",
-      kategori_umkm: item.kategori_umkm ?? item.sectors?.[0]?.name ?? "",
+      kategori_umkm: item.sectors?.[0]?.name ?? item.kategori_umkm ?? "",
+      kategori_umkm_2: item.sectors?.[1]?.name ?? "",
       is_ekraf: item.is_ekraf === true,
+      rt: parsedRtRw.rt,
+      rw: parsedRtRw.rw,
       latitude:
         item.latitude !== null && item.latitude !== undefined
           ? String(item.latitude)
@@ -244,77 +288,6 @@ export default function AdminUmkmTable({
   const closeEditModal = () => {
     setEditItem(null);
     setSavingEdit(false);
-  };
-
-  const openAddModal = () => {
-    setAddForm(emptyForm);
-    setMessage("");
-    setShowAddModal(true);
-  };
-
-  const closeAddModal = () => {
-    setShowAddModal(false);
-    setSavingAdd(false);
-  };
-
-  const saveEdit = async (e: FormEvent) => {
-    e.preventDefault();
-
-    if (!editItem) return;
-
-    const confirmAction = window.confirm(
-      `Simpan perubahan untuk "${editItem.nama_usaha}"?`
-    );
-
-    if (!confirmAction) return;
-
-    setSavingEdit(true);
-    setMessage("");
-
-    const latitudeValue = parseCoordinate(editForm.latitude);
-    const longitudeValue = parseCoordinate(editForm.longitude);
-
-    if (latitudeValue === "invalid") {
-      setMessage("Gagal menyimpan: latitude harus berupa angka.");
-      setSavingEdit(false);
-      return;
-    }
-
-    if (longitudeValue === "invalid") {
-      setMessage("Gagal menyimpan: longitude harus berupa angka.");
-      setSavingEdit(false);
-      return;
-    }
-
-    const kategoriUmkm =
-      editForm.kategori_umkm.trim() === ""
-        ? "Lainnya / Perlu Review"
-        : editForm.kategori_umkm.trim();
-
-    const { error } = await supabase
-      .from(TABLE_NAME)
-      .update({
-        nama_usaha: editForm.nama_usaha.trim(),
-        alamat: editForm.alamat.trim(),
-        kategori_umkm: kategoriUmkm,
-        is_ekraf: editForm.is_ekraf,
-        latitude: latitudeValue,
-        longitude: longitudeValue,
-        gmaps_url:
-          editForm.gmaps_url.trim() === "" ? null : editForm.gmaps_url.trim(),
-      })
-      .in("id", getTargetIds(editItem));
-
-    if (error) {
-      setMessage(`Gagal menyimpan perubahan: ${error.message}`);
-      setSavingEdit(false);
-      return;
-    }
-
-    setMessage(`"${editForm.nama_usaha}" berhasil diperbarui.`);
-    setSavingEdit(false);
-    setEditItem(null);
-    onRefresh?.();
   };
 
   const saveAdd = async (e: FormEvent) => {
@@ -335,9 +308,7 @@ export default function AdminUmkmTable({
       .filter(Boolean)
       .filter((value, index, array) => array.indexOf(value) === index);
 
-    const rtRw =
-      addForm.rt && addForm.rw ? `RT ${addForm.rt} RW ${addForm.rw}` : null;
-
+    const rtRw = buildRtRw(addForm.rt, addForm.rw);
     const gmapsUrl = addForm.gmaps_url.trim();
 
     if (!namaUsaha) {
@@ -398,6 +369,164 @@ export default function AdminUmkmTable({
     setSavingAdd(false);
     setShowAddModal(false);
     setAddForm(emptyForm);
+    onRefresh?.();
+  };
+
+  const saveEdit = async (e: FormEvent) => {
+    e.preventDefault();
+
+    if (!editItem) return;
+
+    const confirmAction = window.confirm(
+      `Simpan perubahan untuk "${editItem.nama_usaha}"?`
+    );
+
+    if (!confirmAction) return;
+
+    setSavingEdit(true);
+    setMessage("");
+
+    const latitudeValue = parseCoordinate(editForm.latitude);
+    const longitudeValue = parseCoordinate(editForm.longitude);
+
+    if (latitudeValue === "invalid") {
+      setMessage("Gagal menyimpan: latitude harus berupa angka.");
+      setSavingEdit(false);
+      return;
+    }
+
+    if (longitudeValue === "invalid") {
+      setMessage("Gagal menyimpan: longitude harus berupa angka.");
+      setSavingEdit(false);
+      return;
+    }
+
+    const kategoriUmkm1 =
+      editForm.kategori_umkm.trim() === ""
+        ? "Lainnya / Perlu Review"
+        : editForm.kategori_umkm.trim();
+
+    const kategoriUmkm2 = editForm.kategori_umkm_2.trim();
+
+    const selectedCategories = [kategoriUmkm1, kategoriUmkm2]
+      .filter(Boolean)
+      .filter((value, index, array) => array.indexOf(value) === index);
+
+    const rtRw = buildRtRw(editForm.rt, editForm.rw);
+
+    const targetIds = getTargetIds(editItem);
+
+    const commonPayload = {
+      nama_usaha: editForm.nama_usaha.trim(),
+      alamat: editForm.alamat.trim() === "" ? null : editForm.alamat.trim(),
+      is_ekraf: editForm.is_ekraf,
+      rt_rw: rtRw,
+      latitude: latitudeValue,
+      longitude: longitudeValue,
+      gmaps_url:
+        editForm.gmaps_url.trim() === "" ? null : editForm.gmaps_url.trim(),
+    };
+
+    const { error: commonError } = await supabase
+      .from(TABLE_NAME)
+      .update(commonPayload)
+      .in("id", targetIds);
+
+    if (commonError) {
+      setMessage(`Gagal menyimpan perubahan: ${commonError.message}`);
+      setSavingEdit(false);
+      return;
+    }
+
+    const firstId = targetIds[0];
+
+    const { error: firstCategoryError } = await supabase
+      .from(TABLE_NAME)
+      .update({
+        kategori_umkm: selectedCategories[0],
+        search_text: buildSearchText({
+          nama_usaha: editForm.nama_usaha.trim(),
+          alamat: editForm.alamat.trim(),
+          deskripsi:
+            editItem.descriptions?.join(" ") ?? editItem.deskripsi ?? "",
+          kategori_umkm: selectedCategories[0],
+        }),
+      })
+      .eq("id", firstId);
+
+    if (firstCategoryError) {
+      setMessage(`Gagal menyimpan kategori utama: ${firstCategoryError.message}`);
+      setSavingEdit(false);
+      return;
+    }
+
+    if (selectedCategories[1]) {
+      const secondId = targetIds[1];
+
+      if (secondId) {
+        const { error: secondCategoryError } = await supabase
+          .from(TABLE_NAME)
+          .update({
+            kategori_umkm: selectedCategories[1],
+            search_text: buildSearchText({
+              nama_usaha: editForm.nama_usaha.trim(),
+              alamat: editForm.alamat.trim(),
+              deskripsi:
+                editItem.descriptions?.join(" ") ?? editItem.deskripsi ?? "",
+              kategori_umkm: selectedCategories[1],
+            }),
+          })
+          .eq("id", secondId);
+
+        if (secondCategoryError) {
+          setMessage(
+            `Gagal menyimpan kategori kedua: ${secondCategoryError.message}`
+          );
+          setSavingEdit(false);
+          return;
+        }
+      } else {
+        const { error: insertSecondCategoryError } = await supabase
+          .from(TABLE_NAME)
+          .insert({
+            nama_usaha: editForm.nama_usaha.trim(),
+            alamat:
+              editForm.alamat.trim() === "" ? null : editForm.alamat.trim(),
+            deskripsi:
+              editItem.descriptions?.[0] ?? editItem.deskripsi ?? null,
+            sektor: null,
+            kategori_umkm: selectedCategories[1],
+            is_ekraf: editForm.is_ekraf,
+            rt_rw: rtRw,
+            latitude: latitudeValue,
+            longitude: longitudeValue,
+            gmaps_url:
+              editForm.gmaps_url.trim() === ""
+                ? null
+                : editForm.gmaps_url.trim(),
+            search_text: buildSearchText({
+              nama_usaha: editForm.nama_usaha.trim(),
+              alamat: editForm.alamat.trim(),
+              deskripsi:
+                editItem.descriptions?.join(" ") ?? editItem.deskripsi ?? "",
+              kategori_umkm: selectedCategories[1],
+            }),
+            is_active: editItem.is_active,
+          });
+
+        if (insertSecondCategoryError) {
+          setMessage(
+            `Gagal menambah kategori kedua: ${insertSecondCategoryError.message}`
+          );
+          setSavingEdit(false);
+          return;
+        }
+      }
+    }
+
+    setMessage(`"${editForm.nama_usaha}" berhasil diperbarui.`);
+    setSavingEdit(false);
+    setEditItem(null);
     onRefresh?.();
   };
 
@@ -675,8 +804,7 @@ export default function AdminUmkmTable({
                 </h2>
                 <p className="mt-2 text-sm text-gray-600">
                   Jika memilih dua kategori, sistem akan menyimpan dua baris
-                  data dan menampilkannya sebagai satu UMKM dengan dua badge
-                  kategori.
+                  data dan menampilkannya sebagai satu UMKM dengan dua badge.
                 </p>
               </div>
 
@@ -819,91 +947,27 @@ export default function AdminUmkmTable({
                 </select>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-900">
-                    RT
-                  </label>
-                  <select
-                    value={addForm.rt}
-                    onChange={(e) =>
-                      setAddForm((prev) => ({
-                        ...prev,
-                        rt: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-                  >
-                    <option value="">Pilih RT</option>
-                    {RT_OPTIONS.map((rt) => (
-                      <option key={rt} value={rt}>
-                        RT {rt}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <RtRwSelect
+                rt={addForm.rt}
+                rw={addForm.rw}
+                onChangeRt={(value) =>
+                  setAddForm((prev) => ({ ...prev, rt: value }))
+                }
+                onChangeRw={(value) =>
+                  setAddForm((prev) => ({ ...prev, rw: value }))
+                }
+              />
 
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-900">
-                    RW
-                  </label>
-                  <select
-                    value={addForm.rw}
-                    onChange={(e) =>
-                      setAddForm((prev) => ({
-                        ...prev,
-                        rw: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-                  >
-                    <option value="">Pilih RW</option>
-                    {RW_OPTIONS.map((rw) => (
-                      <option key={rw} value={rw}>
-                        RW {rw}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-900">
-                    Latitude
-                  </label>
-                  <input
-                    type="text"
-                    value={addForm.latitude}
-                    onChange={(e) =>
-                      setAddForm((prev) => ({
-                        ...prev,
-                        latitude: e.target.value,
-                      }))
-                    }
-                    placeholder="-7.9666204"
-                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-900">
-                    Longitude
-                  </label>
-                  <input
-                    type="text"
-                    value={addForm.longitude}
-                    onChange={(e) =>
-                      setAddForm((prev) => ({
-                        ...prev,
-                        longitude: e.target.value,
-                      }))
-                    }
-                    placeholder="112.6326321"
-                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-                  />
-                </div>
-              </div>
+              <CoordinateFields
+                latitude={addForm.latitude}
+                longitude={addForm.longitude}
+                onChangeLatitude={(value) =>
+                  setAddForm((prev) => ({ ...prev, latitude: value }))
+                }
+                onChangeLongitude={(value) =>
+                  setAddForm((prev) => ({ ...prev, longitude: value }))
+                }
+              />
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-900">
@@ -923,23 +987,12 @@ export default function AdminUmkmTable({
                 />
               </div>
 
-              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={closeAddModal}
-                  className="rounded-2xl border px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50"
-                >
-                  Batal
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={savingAdd}
-                  className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold !text-white hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {savingAdd ? "Menyimpan..." : "Tambah Data"}
-                </button>
-              </div>
+              <ModalActions
+                onCancel={closeAddModal}
+                loading={savingAdd}
+                submitText="Tambah Data"
+                loadingText="Menyimpan..."
+              />
             </form>
           </div>
         </div>
@@ -974,8 +1027,8 @@ export default function AdminUmkmTable({
             {editItem.rowIds?.length > 1 && (
               <div className="mb-5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 Data ini menggabungkan {editItem.rowIds.length} baris. Edit
-                nama, alamat, kategori, status ekraf, koordinat, dan Google Maps
-                akan berlaku untuk semuanya.
+                nama, alamat, kategori, status ekraf, RT/RW, koordinat, dan
+                Google Maps akan berlaku pada data terkait.
               </div>
             )}
 
@@ -1018,7 +1071,7 @@ export default function AdminUmkmTable({
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-gray-900">
-                    Kategori UMKM
+                    Kategori UMKM 1
                   </label>
                   <select
                     value={editForm.kategori_umkm}
@@ -1030,7 +1083,7 @@ export default function AdminUmkmTable({
                     }
                     className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
                   >
-                    <option value="">Pilih kategori</option>
+                    <option value="">Pilih kategori utama</option>
                     {CATEGORY_OPTIONS.map((category) => (
                       <option key={category} value={category}>
                         {category}
@@ -1041,22 +1094,54 @@ export default function AdminUmkmTable({
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-gray-900">
-                    Status Ekraf
+                    Kategori UMKM 2{" "}
+                    <span className="text-gray-400">(opsional)</span>
                   </label>
                   <select
-                    value={editForm.is_ekraf ? "true" : "false"}
+                    value={editForm.kategori_umkm_2}
                     onChange={(e) =>
                       setEditForm((prev) => ({
                         ...prev,
-                        is_ekraf: e.target.value === "true",
+                        kategori_umkm_2: e.target.value,
                       }))
                     }
                     className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
                   >
-                    <option value="false">Non-Ekraf</option>
-                    <option value="true">Ekraf</option>
+                    <option value="">Tidak ada kategori kedua</option>
+                    {CATEGORY_OPTIONS.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
                   </select>
                 </div>
+              </div>
+
+              {editForm.kategori_umkm_2 &&
+                editForm.kategori_umkm_2 === editForm.kategori_umkm && (
+                  <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    Kategori kedua sama dengan kategori pertama. Sistem hanya
+                    akan menyimpan satu kategori.
+                  </div>
+                )}
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-gray-900">
+                  Status Ekraf
+                </label>
+                <select
+                  value={editForm.is_ekraf ? "true" : "false"}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      is_ekraf: e.target.value === "true",
+                    }))
+                  }
+                  className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                >
+                  <option value="false">Non-Ekraf</option>
+                  <option value="true">Ekraf</option>
+                </select>
               </div>
 
               {editItem.old_sector && (
@@ -1068,43 +1153,27 @@ export default function AdminUmkmTable({
                 </div>
               )}
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-900">
-                    Latitude
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.latitude}
-                    onChange={(e) =>
-                      setEditForm((prev) => ({
-                        ...prev,
-                        latitude: e.target.value,
-                      }))
-                    }
-                    placeholder="-7.9666204"
-                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-                  />
-                </div>
+              <RtRwSelect
+                rt={editForm.rt}
+                rw={editForm.rw}
+                onChangeRt={(value) =>
+                  setEditForm((prev) => ({ ...prev, rt: value }))
+                }
+                onChangeRw={(value) =>
+                  setEditForm((prev) => ({ ...prev, rw: value }))
+                }
+              />
 
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-900">
-                    Longitude
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.longitude}
-                    onChange={(e) =>
-                      setEditForm((prev) => ({
-                        ...prev,
-                        longitude: e.target.value,
-                      }))
-                    }
-                    placeholder="112.6326321"
-                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-                  />
-                </div>
-              </div>
+              <CoordinateFields
+                latitude={editForm.latitude}
+                longitude={editForm.longitude}
+                onChangeLatitude={(value) =>
+                  setEditForm((prev) => ({ ...prev, latitude: value }))
+                }
+                onChangeLongitude={(value) =>
+                  setEditForm((prev) => ({ ...prev, longitude: value }))
+                }
+              />
 
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-900">
@@ -1122,32 +1191,144 @@ export default function AdminUmkmTable({
                   placeholder="https://maps.app.goo.gl/..."
                   className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
                 />
-                <p className="mt-2 text-xs text-gray-500">
-                  Kosongkan jika belum memiliki tautan Google Maps resmi.
-                </p>
               </div>
 
-              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={closeEditModal}
-                  className="rounded-2xl border px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50"
-                >
-                  Batal
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={savingEdit}
-                  className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold !text-white hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {savingEdit ? "Menyimpan..." : "Simpan Perubahan"}
-                </button>
-              </div>
+              <ModalActions
+                onCancel={closeEditModal}
+                loading={savingEdit}
+                submitText="Simpan Perubahan"
+                loadingText="Menyimpan..."
+              />
             </form>
           </div>
         </div>
       )}
     </>
+  );
+}
+
+function RtRwSelect({
+  rt,
+  rw,
+  onChangeRt,
+  onChangeRw,
+}: {
+  rt: string;
+  rw: string;
+  onChangeRt: (value: string) => void;
+  onChangeRw: (value: string) => void;
+}) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <div>
+        <label className="mb-2 block text-sm font-semibold text-gray-900">
+          RT
+        </label>
+        <select
+          value={rt}
+          onChange={(e) => onChangeRt(e.target.value)}
+          className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+        >
+          <option value="">Pilih RT</option>
+          {RT_OPTIONS.map((item) => (
+            <option key={item} value={item}>
+              RT {item}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="mb-2 block text-sm font-semibold text-gray-900">
+          RW
+        </label>
+        <select
+          value={rw}
+          onChange={(e) => onChangeRw(e.target.value)}
+          className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+        >
+          <option value="">Pilih RW</option>
+          {RW_OPTIONS.map((item) => (
+            <option key={item} value={item}>
+              RW {item}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function CoordinateFields({
+  latitude,
+  longitude,
+  onChangeLatitude,
+  onChangeLongitude,
+}: {
+  latitude: string;
+  longitude: string;
+  onChangeLatitude: (value: string) => void;
+  onChangeLongitude: (value: string) => void;
+}) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <div>
+        <label className="mb-2 block text-sm font-semibold text-gray-900">
+          Latitude
+        </label>
+        <input
+          type="text"
+          value={latitude}
+          onChange={(e) => onChangeLatitude(e.target.value)}
+          placeholder="-7.9666204"
+          className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+        />
+      </div>
+
+      <div>
+        <label className="mb-2 block text-sm font-semibold text-gray-900">
+          Longitude
+        </label>
+        <input
+          type="text"
+          value={longitude}
+          onChange={(e) => onChangeLongitude(e.target.value)}
+          placeholder="112.6326321"
+          className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+        />
+      </div>
+    </div>
+  );
+}
+
+function ModalActions({
+  onCancel,
+  loading,
+  submitText,
+  loadingText,
+}: {
+  onCancel: () => void;
+  loading: boolean;
+  submitText: string;
+  loadingText: string;
+}) {
+  return (
+    <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+      <button
+        type="button"
+        onClick={onCancel}
+        className="rounded-2xl border px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50"
+      >
+        Batal
+      </button>
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold !text-white hover:bg-blue-700 disabled:opacity-60"
+      >
+        {loading ? loadingText : submitText}
+      </button>
+    </div>
   );
 }
