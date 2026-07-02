@@ -187,7 +187,7 @@ export default function AdminUmkmTable({
     setMessage("");
 
     const { error } = await supabase
-      .from("data 2025")
+      .from("data_2025")
       .update({
         is_active: nextStatus,
       })
@@ -281,7 +281,7 @@ export default function AdminUmkmTable({
         : editForm.kategori_umkm.trim();
 
     const { error } = await supabase
-      .from("data 2025")
+      .from("data_2025")
       .update({
         nama_usaha: editForm.nama_usaha.trim(),
         alamat: editForm.alamat.trim(),
@@ -360,7 +360,7 @@ export default function AdminUmkmTable({
       is_active: true,
     };
 
-    const { error } = await supabase.from("data 2025").insert(insertPayload);
+    const { error } = await supabase.from("data_2025").insert(insertPayload);
 
     if (error) {
       setMessage(`Gagal menambah data: ${error.message}`);
