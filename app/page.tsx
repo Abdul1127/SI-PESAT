@@ -8,6 +8,8 @@ import Footer from "@/components/footer";
 import UmkmMap from "@/components/UmkmMap";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 
+const TABLE_NAME = "data_2025";
+
 function slugify(text: string) {
   return text
     .toLowerCase()
@@ -31,7 +33,7 @@ export default function Home() {
 
 async function HomeContent() {
   const { data, error } = await supabase
-    .from("data_2025")
+    .from(TABLE_NAME)
     .select(`
       id,
       nama_usaha,
@@ -44,6 +46,7 @@ async function HomeContent() {
       longitude,
       rt_rw,
       gmaps_url,
+      image_url,
       is_active
     `)
     .eq("is_active", true)
@@ -67,15 +70,23 @@ async function HomeContent() {
 
       return {
         id: item.id,
+        rowIds: [item.id],
+
         business_name: item.nama_usaha,
         slug: String(item.id),
+
         short_address: item.alamat,
         address: item.alamat,
+
         description: item.deskripsi,
         descriptions: item.deskripsi ? [item.deskripsi] : [],
+
         latitude: item.latitude,
         longitude: item.longitude,
+        rt_rw: item.rt_rw,
+
         gmaps_url: mapsUrl,
+        image_url: item.image_url,
 
         kategori_umkm: item.kategori_umkm,
         old_sector: item.sektor,
@@ -107,10 +118,7 @@ async function HomeContent() {
     const key = `${nameKey}|${addressKey}`;
 
     if (!grouped.has(key)) {
-      grouped.set(key, {
-        ...item,
-        rowIds: [item.id],
-      });
+      grouped.set(key, { ...item });
     } else {
       const current = grouped.get(key);
 
@@ -132,12 +140,20 @@ async function HomeContent() {
         current.gmaps_url = item.gmaps_url;
       }
 
+      if (!current.image_url && item.image_url) {
+        current.image_url = item.image_url;
+      }
+
       if (!current.latitude && item.latitude) {
         current.latitude = item.latitude;
       }
 
       if (!current.longitude && item.longitude) {
         current.longitude = item.longitude;
+      }
+
+      if (!current.rt_rw && item.rt_rw) {
+        current.rt_rw = item.rt_rw;
       }
 
       if (current.is_ekraf !== true && item.is_ekraf === true) {

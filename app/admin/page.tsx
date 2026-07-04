@@ -15,6 +15,8 @@ import {
   Tags,
 } from "lucide-react";
 
+const TABLE_NAME = "data_2025";
+
 function slugify(text: string) {
   return text
     .toLowerCase()
@@ -35,7 +37,7 @@ export default function AdminPage() {
     setErrorMessage("");
 
     const { data, error } = await supabase
-      .from("data_2025")
+      .from(TABLE_NAME)
       .select(`
         id,
         nama_usaha,
@@ -48,6 +50,7 @@ export default function AdminPage() {
         longitude,
         rt_rw,
         gmaps_url,
+        image_url,
         is_active
       `)
       .order("id", { ascending: true });
@@ -120,6 +123,10 @@ export default function AdminPage() {
       (item: any) => item.gmaps_url && item.gmaps_url.trim() !== ""
     ).length;
 
+    const withImages = rawData.filter(
+      (item: any) => item.image_url && item.image_url.trim() !== ""
+    ).length;
+
     const withCoordinate = rawData.filter(
       (item: any) => item.latitude !== null && item.longitude !== null
     ).length;
@@ -149,15 +156,18 @@ export default function AdminPage() {
         grouped.set(key, {
           id: item.id,
           rowIds: [item.id],
+
           nama_usaha: item.nama_usaha,
           alamat: item.alamat,
           deskripsi: item.deskripsi,
           rt_rw: item.rt_rw,
+
           latitude: item.latitude,
           longitude: item.longitude,
           gmaps_url: item.gmaps_url,
-          is_active: item.is_active,
+          image_url: item.image_url,
 
+          is_active: item.is_active,
           kategori_umkm: item.kategori_umkm,
           old_sector: item.sektor,
           is_ekraf: item.is_ekraf,
@@ -185,12 +195,20 @@ export default function AdminPage() {
           current.gmaps_url = item.gmaps_url;
         }
 
+        if (!current.image_url && item.image_url) {
+          current.image_url = item.image_url;
+        }
+
         if (!current.latitude && item.latitude) {
           current.latitude = item.latitude;
         }
 
         if (!current.longitude && item.longitude) {
           current.longitude = item.longitude;
+        }
+
+        if (!current.rt_rw && item.rt_rw) {
+          current.rt_rw = item.rt_rw;
         }
 
         if (!current.kategori_umkm && item.kategori_umkm) {
@@ -219,6 +237,9 @@ export default function AdminPage() {
     const mapsPercentage =
       totalData > 0 ? Math.round((withMaps / totalData) * 100) : 0;
 
+    const imagePercentage =
+      totalData > 0 ? Math.round((withImages / totalData) * 100) : 0;
+
     const ekrafPercentage =
       totalData > 0 ? Math.round((ekrafData / totalData) * 100) : 0;
 
@@ -230,10 +251,12 @@ export default function AdminPage() {
       ekrafData,
       nonEkrafData,
       withMaps,
+      withImages,
       withCoordinate,
       groupedData,
       coordinatePercentage,
       mapsPercentage,
+      imagePercentage,
       ekrafPercentage,
     };
   }, [rawData]);
@@ -283,7 +306,7 @@ export default function AdminPage() {
             </h1>
 
             <p className="mt-2 text-sm text-gray-600">
-              Kelola data UMKM, kategori baru, status ekraf, dan kelengkapan
+              Kelola data UMKM, kategori, status ekraf, foto, dan kelengkapan
               lokasi.
             </p>
           </div>
@@ -365,7 +388,7 @@ export default function AdminPage() {
           <div className="rounded-3xl border bg-white p-5 shadow-sm">
             <div className="flex items-center gap-2 text-blue-600">
               <BarChart3 className="h-5 w-5" />
-              <p className="font-bold">Kualitas Data Lokasi</p>
+              <p className="font-bold">Kualitas Data</p>
             </div>
 
             <div className="mt-5 space-y-3">
@@ -402,6 +425,24 @@ export default function AdminPage() {
                     className="h-full rounded-full bg-green-600"
                     style={{
                       width: `${dashboardData.mapsPercentage}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-1 flex justify-between text-sm">
+                  <span className="text-gray-600">Memiliki foto</span>
+                  <span className="font-semibold text-gray-900">
+                    {dashboardData.withImages} / {dashboardData.totalData}
+                  </span>
+                </div>
+
+                <div className="h-3 overflow-hidden rounded-full bg-purple-100">
+                  <div
+                    className="h-full rounded-full bg-purple-600"
+                    style={{
+                      width: `${dashboardData.imagePercentage}%`,
                     }}
                   />
                 </div>

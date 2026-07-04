@@ -32,6 +32,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
       item.business_name?.toLowerCase().includes(keyword) ||
       item.short_address?.toLowerCase().includes(keyword) ||
       item.description?.toLowerCase().includes(keyword) ||
+      item.rt_rw?.toLowerCase().includes(keyword) ||
       item.sectors?.some((sector: any) =>
         sector.name?.toLowerCase().includes(keyword)
       );
@@ -43,7 +44,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
     return matchSearch && matchCategory;
   });
 
-  const totalPages = Math.ceil(filteredUmkm.length / itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(filteredUmkm.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentUmkm = filteredUmkm.slice(startIndex, startIndex + itemsPerPage);
 
@@ -198,7 +199,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
             <div className="flex items-center justify-between rounded-2xl bg-indigo-50 p-3">
               <span className="flex items-center gap-2 text-sm text-gray-800">
                 <Tags className="h-4 w-4 text-indigo-600" />
-                Sektor
+                Kategori
               </span>
               <span className="font-bold !text-gray-950">
                 {categories.length}
@@ -227,8 +228,17 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
               className="min-w-0 rounded-3xl border bg-white p-4 shadow-sm"
             >
               <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-center md:gap-5">
-                <div className="flex h-16 w-full items-center justify-center rounded-2xl bg-blue-50 text-blue-600 md:h-24 md:w-32 md:shrink-0">
-                  <Store className="h-8 w-8" />
+                <div className="flex h-40 w-full shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-blue-50 text-blue-600 md:h-28 md:w-36">
+                  {item.image_url ? (
+                    <img
+                      src={item.image_url}
+                      alt={item.business_name ?? "Foto UMKM"}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <Store className="h-8 w-8" />
+                  )}
                 </div>
 
                 <div className="min-w-0 flex-1">
@@ -238,7 +248,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
 
                   {item.sectors?.length > 1 && (
                     <p className="mt-1 text-xs font-semibold text-green-600">
-                      Multi layanan
+                      Multi kategori
                     </p>
                   )}
 
@@ -251,6 +261,16 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
                         {sector.name}
                       </span>
                     ))}
+
+                    {item.is_ekraf ? (
+                      <span className="inline-block rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
+                        Ekraf
+                      </span>
+                    ) : (
+                      <span className="inline-block rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
+                        Non-Ekraf
+                      </span>
+                    )}
                   </div>
 
                   <ul className="mt-3 space-y-1 text-sm leading-6 text-gray-600">
@@ -259,12 +279,18 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
                     ))}
                   </ul>
 
-                  <p className="mt-2 flex items-start gap-1 text-sm text-gray-500">
-                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
-                    <span className="break-words">
-                      {item.short_address ?? "Alamat belum tersedia"}
-                    </span>
-                  </p>
+                  <div className="mt-2 space-y-1">
+                    <p className="flex items-start gap-1 text-sm text-gray-500">
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                      <span className="break-words">
+                        {item.short_address ?? "Alamat belum tersedia"}
+                      </span>
+                    </p>
+
+                    {item.rt_rw && (
+                      <p className="text-sm text-gray-500">{item.rt_rw}</p>
+                    )}
+                  </div>
                 </div>
 
                 {item.gmaps_url && (
