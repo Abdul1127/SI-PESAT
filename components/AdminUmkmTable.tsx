@@ -53,6 +53,8 @@ export default function AdminUmkmTable({
   const [statusFilter, setStatusFilter] = useState("semua");
   const [ekrafFilter, setEkrafFilter] = useState("semua");
   const [categoryFilter, setCategoryFilter] = useState("semua");
+  const [locationFilter, setLocationFilter] = useState("semua");
+  const [photoFilter, setPhotoFilter] = useState("semua");
   const [currentPage, setCurrentPage] = useState(1);
 
   const [loadingId, setLoadingId] = useState<number | null>(null);
@@ -147,9 +149,47 @@ export default function AdminUmkmTable({
         categoryFilter === "semua" ||
         item.sectors?.some((sector: any) => sector.slug === categoryFilter);
 
-      return matchSearch && matchStatus && matchEkraf && matchCategory;
+      const hasGmaps =
+        item.gmaps_url && String(item.gmaps_url).trim() !== "";
+
+      const hasCoordinate =
+        item.latitude !== null &&
+        item.latitude !== undefined &&
+        item.longitude !== null &&
+        item.longitude !== undefined;
+
+      const hasPhoto =
+        item.image_url && String(item.image_url).trim() !== "";
+
+      const matchLocation =
+        locationFilter === "semua" ||
+        (locationFilter === "gmaps" && hasGmaps) ||
+        (locationFilter === "koordinat" && !hasGmaps && hasCoordinate) ||
+        (locationFilter === "belum-ada" && !hasGmaps && !hasCoordinate);
+
+      const matchPhoto =
+        photoFilter === "semua" ||
+        (photoFilter === "ada-foto" && hasPhoto) ||
+        (photoFilter === "belum-ada-foto" && !hasPhoto);
+
+      return (
+        matchSearch &&
+        matchStatus &&
+        matchEkraf &&
+        matchCategory &&
+        matchLocation &&
+        matchPhoto
+      );
     });
-  }, [data, search, statusFilter, ekrafFilter, categoryFilter]);
+  }, [
+    data,
+    search,
+    statusFilter,
+    ekrafFilter,
+    categoryFilter,
+    locationFilter,
+    photoFilter,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -179,6 +219,23 @@ export default function AdminUmkmTable({
 
   const changeCategoryFilter = (value: string) => {
     setCategoryFilter(value);
+    setCurrentPage(1);
+  };
+
+  const changeLocationFilter = (value: string) => {
+    setLocationFilter(value);
+    setCurrentPage(1);
+  };
+
+  const changePhotoFilter = (value: string) => {
+    setPhotoFilter(value);
+    setCurrentPage(1);
+  };
+
+  const resetExtraFilters = () => {
+    setCategoryFilter("semua");
+    setLocationFilter("semua");
+    setPhotoFilter("semua");
     setCurrentPage(1);
   };
 
@@ -642,16 +699,16 @@ export default function AdminUmkmTable({
         className="scroll-mt-28 rounded-3xl border bg-white shadow-sm"
       >
         <div className="border-b p-5">
-          <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+          <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
             <div>
               <p className="text-lg font-bold text-gray-950">Data UMKM</p>
               <p className="mt-1 text-sm text-gray-600">
                 Cari, tambah data baru, atur kategori UMKM, status ekraf, foto,
-                dan status publikasi data.
+                lokasi, dan status publikasi data.
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:justify-end">
+            <div className="grid w-full gap-3 md:grid-cols-2 xl:w-auto xl:grid-cols-3 2xl:grid-cols-4">
               <button
                 type="button"
                 onClick={openAddModal}
@@ -668,7 +725,7 @@ export default function AdminUmkmTable({
                   value={search}
                   onChange={(e) => changeSearch(e.target.value)}
                   placeholder="Cari UMKM..."
-                  className="w-full rounded-2xl border bg-gray-50 py-3 pl-11 pr-4 text-sm text-gray-900 outline-none focus:border-blue-500 xl:w-72"
+                  className="w-full rounded-2xl border bg-gray-50 py-3 pl-11 pr-4 text-sm text-gray-900 outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -695,7 +752,7 @@ export default function AdminUmkmTable({
               <select
                 value={categoryFilter}
                 onChange={(e) => changeCategoryFilter(e.target.value)}
-                className="max-w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500 xl:w-64"
+                className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
               >
                 <option value="semua">Semua kategori</option>
                 {adminCategories.map((category) => (
@@ -703,6 +760,27 @@ export default function AdminUmkmTable({
                     {category.name}
                   </option>
                 ))}
+              </select>
+
+              <select
+                value={locationFilter}
+                onChange={(e) => changeLocationFilter(e.target.value)}
+                className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+              >
+                <option value="semua">Semua lokasi</option>
+                <option value="gmaps">Punya Google Maps</option>
+                <option value="koordinat">Hanya koordinat</option>
+                <option value="belum-ada">Belum ada lokasi</option>
+              </select>
+
+              <select
+                value={photoFilter}
+                onChange={(e) => changePhotoFilter(e.target.value)}
+                className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+              >
+                <option value="semua">Semua foto</option>
+                <option value="ada-foto">Memiliki foto</option>
+                <option value="belum-ada-foto">Belum memiliki foto</option>
               </select>
             </div>
           </div>
@@ -733,13 +811,15 @@ export default function AdminUmkmTable({
               data.
             </p>
 
-            {categoryFilter !== "semua" && (
+            {(categoryFilter !== "semua" ||
+              locationFilter !== "semua" ||
+              photoFilter !== "semua") && (
               <button
                 type="button"
-                onClick={() => changeCategoryFilter("semua")}
+                onClick={resetExtraFilters}
                 className="w-fit rounded-xl bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50"
               >
-                Reset kategori
+                Reset filter tambahan
               </button>
             )}
           </div>
@@ -870,10 +950,22 @@ export default function AdminUmkmTable({
                         className={`rounded-full px-3 py-1 text-xs font-semibold ${
                           item.gmaps_url
                             ? "bg-blue-50 text-blue-700"
-                            : "bg-gray-100 text-gray-600"
+                            : item.latitude !== null &&
+                                item.latitude !== undefined &&
+                                item.longitude !== null &&
+                                item.longitude !== undefined
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-gray-100 text-gray-600"
                         }`}
                       >
-                        {item.gmaps_url ? "Ada" : "Koordinat"}
+                        {item.gmaps_url
+                          ? "GMaps"
+                          : item.latitude !== null &&
+                              item.latitude !== undefined &&
+                              item.longitude !== null &&
+                              item.longitude !== undefined
+                            ? "Koordinat"
+                            : "Belum ada"}
                       </span>
                     </td>
 
