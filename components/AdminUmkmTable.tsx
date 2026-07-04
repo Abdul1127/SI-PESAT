@@ -52,6 +52,7 @@ export default function AdminUmkmTable({
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("semua");
   const [ekrafFilter, setEkrafFilter] = useState("semua");
+  const [categoryFilter, setCategoryFilter] = useState("semua");
   const [currentPage, setCurrentPage] = useState(1);
 
   const [loadingId, setLoadingId] = useState<number | null>(null);
@@ -97,6 +98,25 @@ export default function AdminUmkmTable({
 
   const itemsPerPage = 15;
 
+  const adminCategories = useMemo(() => {
+    const categoryMap = new Map<string, string>();
+
+    data.forEach((item) => {
+      item.sectors?.forEach((sector: any) => {
+        if (sector.slug && sector.name) {
+          categoryMap.set(sector.slug, sector.name);
+        }
+      });
+    });
+
+    return Array.from(categoryMap.entries())
+      .map(([slug, name]) => ({
+        slug,
+        name,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [data]);
+
   const filteredData = useMemo(() => {
     const keyword = search.toLowerCase();
 
@@ -123,9 +143,13 @@ export default function AdminUmkmTable({
         (ekrafFilter === "ekraf" && item.is_ekraf === true) ||
         (ekrafFilter === "nonekraf" && item.is_ekraf !== true);
 
-      return matchSearch && matchStatus && matchEkraf;
+      const matchCategory =
+        categoryFilter === "semua" ||
+        item.sectors?.some((sector: any) => sector.slug === categoryFilter);
+
+      return matchSearch && matchStatus && matchEkraf && matchCategory;
     });
-  }, [data, search, statusFilter, ekrafFilter]);
+  }, [data, search, statusFilter, ekrafFilter, categoryFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -150,6 +174,11 @@ export default function AdminUmkmTable({
 
   const changeEkrafFilter = (value: string) => {
     setEkrafFilter(value);
+    setCurrentPage(1);
+  };
+
+  const changeCategoryFilter = (value: string) => {
+    setCategoryFilter(value);
     setCurrentPage(1);
   };
 
@@ -351,7 +380,9 @@ export default function AdminUmkmTable({
       image_url: publicUrl,
     }));
 
-    setMessage("Foto berhasil diupload. Klik Simpan Perubahan untuk menyimpan ke data UMKM.");
+    setMessage(
+      "Foto berhasil diupload. Klik Simpan Perubahan untuk menyimpan ke data UMKM."
+    );
     setUploadingImage(false);
   };
 
@@ -523,7 +554,9 @@ export default function AdminUmkmTable({
       .eq("id", firstId);
 
     if (firstCategoryError) {
-      setMessage(`Gagal menyimpan kategori utama: ${firstCategoryError.message}`);
+      setMessage(
+        `Gagal menyimpan kategori utama: ${firstCategoryError.message}`
+      );
       setSavingEdit(false);
       return;
     }
@@ -618,7 +651,7 @@ export default function AdminUmkmTable({
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 xl:flex-row">
+            <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:justify-end">
               <button
                 type="button"
                 onClick={openAddModal}
@@ -658,6 +691,19 @@ export default function AdminUmkmTable({
                 <option value="ekraf">Ekraf</option>
                 <option value="nonekraf">Non-Ekraf</option>
               </select>
+
+              <select
+                value={categoryFilter}
+                onChange={(e) => changeCategoryFilter(e.target.value)}
+                className="max-w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500 xl:w-64"
+              >
+                <option value="semua">Semua kategori</option>
+                {adminCategories.map((category) => (
+                  <option key={category.slug} value={category.slug}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -673,17 +719,29 @@ export default function AdminUmkmTable({
             </div>
           )}
 
-          <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-gray-600">
-            Menampilkan{" "}
-            <span className="font-semibold text-gray-900">
-              {filteredData.length === 0 ? 0 : startIndex + 1}-
-              {Math.min(startIndex + itemsPerPage, filteredData.length)}
-            </span>{" "}
-            dari{" "}
-            <span className="font-semibold text-gray-900">
-              {filteredData.length}
-            </span>{" "}
-            data.
+          <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-gray-600 md:flex-row md:items-center md:justify-between">
+            <p>
+              Menampilkan{" "}
+              <span className="font-semibold text-gray-900">
+                {filteredData.length === 0 ? 0 : startIndex + 1}-
+                {Math.min(startIndex + itemsPerPage, filteredData.length)}
+              </span>{" "}
+              dari{" "}
+              <span className="font-semibold text-gray-900">
+                {filteredData.length}
+              </span>{" "}
+              data.
+            </p>
+
+            {categoryFilter !== "semua" && (
+              <button
+                type="button"
+                onClick={() => changeCategoryFilter("semua")}
+                className="w-fit rounded-xl bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+              >
+                Reset kategori
+              </button>
+            )}
           </div>
         </div>
 
