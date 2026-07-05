@@ -42,46 +42,82 @@ const RW_OPTIONS = Array.from({ length: 10 }, (_, index) =>
   String(index + 1).padStart(3, "0")
 );
 
-function extractStreetName(address: string | null | undefined) {
-  if (!address || address.trim() === "") {
-    return "Alamat belum jelas";
-  }
+function normalizeAddressText(value: string | null | undefined) {
+  if (!value) return "";
 
-  const cleaned = address.replace(/\s+/g, " ").trim();
-
-  const streetMatch = cleaned.match(
-    /\b(?:Jl\.?|Jln\.?|Jalan)\s+([^,]+?)(?:\s+(?:No\.?|Nomor)\s*[\w/-]+|\s+RT\b|\s+RW\b|,|$)/i
-  );
-
-  if (streetMatch?.[1]) {
-    const streetName = streetMatch[1]
-      .replace(/\s+/g, " ")
-      .replace(/[.,;:]+$/g, "")
-      .trim();
-
-    if (streetName) {
-      return `Jl. ${streetName}`;
-    }
-  }
-
-  const firstPart = cleaned.split(",")[0]?.trim();
-
-  if (firstPart) {
-    return firstPart;
-  }
-
-  return "Alamat belum jelas";
+  return value
+    .toLowerCase()
+    .replace(/\bjls\b/g, "jl")
+    .replace(/\bjln\b/g, "jl")
+    .replace(/\bjalan\b/g, "jl")
+    .replace(/\bkl\b/g, "jl")
+    .replace(/\bkln\b/g, "jl")
+    .replace(/\bgg\b/g, "gang")
+    .replace(/\bno\b/g, "nomor")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function streetKey(value: string) {
-  return value.toLowerCase().replace(/\s+/g, " ").trim();
+function normalizeAliasText(value: string | null | undefined) {
+  if (!value) return "";
+
+  return normalizeAddressText(value)
+    .replace(/^jl\s+/, "")
+    .replace(/^gang\s+/, "")
+    .trim();
+}
+
+function getAddressStart(value: string | null | undefined) {
+  const normalized = normalizeAddressText(value);
+
+  if (!normalized) return "";
+
+  return normalized
+    .split(/\bkel\b|\bkelurahan\b|\bkec\b|\bkecamatan\b|\bkota\b|\bmalang\b|\bjatim\b|,/i)[0]
+    .trim();
+}
+
+function isAddressMatchStreet(address: string | null | undefined, street: any) {
+  const addressStart = getAddressStart(address);
+
+  if (!addressStart || !street) return false;
+
+  const candidates = [street.nama_jalan, ...(street.alias ?? [])]
+    .map((item) => normalizeAliasText(item))
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+
+  return candidates.some((candidate) => {
+    const candidateWithJl = `jl ${candidate}`;
+
+    return (
+      addressStart === candidate ||
+      addressStart === candidateWithJl ||
+      addressStart.startsWith(`${candidate} `) ||
+      addressStart.startsWith(`${candidateWithJl} `)
+    );
+  });
+}
+
+function detectStreetName(
+  address: string | null | undefined,
+  streets: any[] = []
+) {
+  const matchedStreet = streets.find((street) =>
+    isAddressMatchStreet(address, street)
+  );
+
+  return matchedStreet?.nama_jalan ?? "Belum cocok";
 }
 
 export default function AdminUmkmTable({
   data,
+  streets = [],
   onRefresh,
 }: {
   data: any[];
+  streets?: any[];
   onRefresh?: () => void;
 }) {
   const [search, setSearch] = useState("");
@@ -158,29 +194,16 @@ export default function AdminUmkmTable({
   }, [data]);
 
   const adminStreets = useMemo(() => {
-    const streetMap = new Map<string, string>();
-
-    data.forEach((item) => {
-      const street = extractStreetName(item.alamat);
-
-      if (street && street !== "Alamat belum jelas") {
-        streetMap.set(streetKey(street), street);
-      }
-    });
-
-    return Array.from(streetMap.entries())
-      .map(([key, name]) => ({
-        key,
-        name,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [data]);
+    return [...streets].sort((a, b) =>
+      String(a.nama_jalan).localeCompare(String(b.nama_jalan))
+    );
+  }, [streets]);
 
   const filteredData = useMemo(() => {
     const keyword = search.toLowerCase();
 
     return data.filter((item) => {
-      const extractedStreet = extractStreetName(item.alamat);
+      const detectedStreet = detectStreetName(item.alamat, adminStreets);
 
       const matchSearch =
         item.nama_usaha?.toLowerCase().includes(keyword) ||
@@ -188,7 +211,7 @@ export default function AdminUmkmTable({
         item.kategori_umkm?.toLowerCase().includes(keyword) ||
         item.old_sector?.toLowerCase().includes(keyword) ||
         item.wa?.toLowerCase().includes(keyword) ||
-        extractedStreet.toLowerCase().includes(keyword) ||
+        detectedStreet.toLowerCase().includes(keyword) ||
         item.descriptions?.some((desc: string) =>
           desc.toLowerCase().includes(keyword)
         ) ||
@@ -233,8 +256,13 @@ export default function AdminUmkmTable({
         (photoFilter === "ada-foto" && hasPhoto) ||
         (photoFilter === "belum-ada-foto" && !hasPhoto);
 
+      const selectedStreet = adminStreets.find(
+        (street) => String(street.id) === streetFilter
+      );
+
       const matchStreet =
-        streetFilter === "semua" || streetKey(extractedStreet) === streetFilter;
+        streetFilter === "semua" ||
+        isAddressMatchStreet(item.alamat, selectedStreet);
 
       return (
         matchSearch &&
@@ -248,6 +276,7 @@ export default function AdminUmkmTable({
     });
   }, [
     data,
+    adminStreets,
     search,
     statusFilter,
     ekrafFilter,
@@ -260,6 +289,12 @@ export default function AdminUmkmTable({
   const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentData = filteredData.slice(startIndex, startIndex + itemsPerPage);
+
+  const unmatchedStreetCount = useMemo(() => {
+    return data.filter(
+      (item) => detectStreetName(item.alamat, adminStreets) === "Belum cocok"
+    ).length;
+  }, [data, adminStreets]);
 
   const scrollToTableTop = () => {
     tableTopRef.current?.scrollIntoView({
@@ -797,8 +832,8 @@ export default function AdminUmkmTable({
             <div>
               <p className="text-lg font-bold text-gray-950">Data UMKM</p>
               <p className="mt-1 text-sm text-gray-600">
-                Cari, tambah data baru, atur kategori UMKM, status ekraf, foto,
-                kontak WhatsApp, lokasi, jalan, dan status publikasi data.
+                Filter jalan memakai tabel kamus jalan_sukun. Data yang belum
+                cocok berarti alias jalan perlu ditambahkan ke Supabase.
               </p>
             </div>
 
@@ -818,7 +853,7 @@ export default function AdminUmkmTable({
                   type="text"
                   value={search}
                   onChange={(e) => changeSearch(e.target.value)}
-                  placeholder="Cari UMKM..."
+                  placeholder="Cari UMKM / jalan..."
                   className="w-full rounded-2xl border bg-gray-50 py-3 pl-11 pr-4 text-sm text-gray-900 outline-none focus:border-blue-500"
                 />
               </div>
@@ -863,8 +898,8 @@ export default function AdminUmkmTable({
               >
                 <option value="semua">Semua jalan</option>
                 {adminStreets.map((street) => (
-                  <option key={street.key} value={street.key}>
-                    {street.name}
+                  <option key={street.id} value={String(street.id)}>
+                    {street.nama_jalan}
                   </option>
                 ))}
               </select>
@@ -904,7 +939,7 @@ export default function AdminUmkmTable({
             </div>
           )}
 
-          <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-gray-600 md:flex-row md:items-center md:justify-between">
+          <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-gray-600 md:grid-cols-3">
             <p>
               Menampilkan{" "}
               <span className="font-semibold text-gray-900">
@@ -916,6 +951,20 @@ export default function AdminUmkmTable({
                 {filteredData.length}
               </span>{" "}
               data.
+            </p>
+
+            <p>
+              Kamus jalan:{" "}
+              <span className="font-semibold text-gray-900">
+                {adminStreets.length}
+              </span>
+            </p>
+
+            <p>
+              Belum cocok jalan:{" "}
+              <span className="font-semibold text-red-700">
+                {unmatchedStreetCount}
+              </span>
             </p>
 
             {(categoryFilter !== "semua" ||
@@ -939,7 +988,7 @@ export default function AdminUmkmTable({
               <tr className="border-b bg-slate-50 text-gray-600">
                 <th className="px-5 py-4 font-semibold">Nama Usaha</th>
                 <th className="px-5 py-4 font-semibold">Kategori</th>
-                <th className="px-5 py-4 font-semibold">Jalan</th>
+                <th className="px-5 py-4 font-semibold">Jalan Terdeteksi</th>
                 <th className="px-5 py-4 font-semibold">Foto</th>
                 <th className="px-5 py-4 font-semibold">WA</th>
                 <th className="px-5 py-4 font-semibold">Ekraf</th>
@@ -961,172 +1010,167 @@ export default function AdminUmkmTable({
                   </td>
                 </tr>
               ) : (
-                currentData.map((item: any) => (
-                  <tr key={item.id} className="border-b last:border-b-0">
-                    <td className="px-5 py-4 align-top">
-                      <p className="font-semibold text-gray-950">
-                        {item.nama_usaha}
-                      </p>
+                currentData.map((item: any) => {
+                  const detectedStreet = detectStreetName(
+                    item.alamat,
+                    adminStreets
+                  );
 
-                      {item.sectors.length > 1 && (
-                        <p className="mt-1 text-xs font-semibold text-green-600">
-                          Multi kategori
+                  return (
+                    <tr key={item.id} className="border-b last:border-b-0">
+                      <td className="px-5 py-4 align-top">
+                        <p className="font-semibold text-gray-950">
+                          {item.nama_usaha}
                         </p>
-                      )}
 
-                      {item.descriptions?.length > 0 && (
-                        <p className="mt-2 line-clamp-2 max-w-xs text-xs leading-5 text-gray-500">
-                          {item.descriptions.join(", ")}
-                        </p>
-                      )}
+                        {item.sectors.length > 1 && (
+                          <p className="mt-1 text-xs font-semibold text-green-600">
+                            Multi kategori
+                          </p>
+                        )}
 
-                      {item.rowIds?.length > 1 && (
-                        <p className="mt-2 text-xs text-gray-400">
-                          {item.rowIds.length} baris data tergabung
-                        </p>
-                      )}
-                    </td>
+                        {item.rowIds?.length > 1 && (
+                          <p className="mt-2 text-xs text-gray-400">
+                            {item.rowIds.length} baris data tergabung
+                          </p>
+                        )}
+                      </td>
 
-                    <td className="px-5 py-4 align-top">
-                      <div className="flex max-w-xs flex-wrap gap-1">
-                        {item.sectors.slice(0, 3).map((sector: any) => (
-                          <span
-                            key={sector.slug}
-                            className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700"
-                          >
-                            {sector.name}
-                          </span>
-                        ))}
+                      <td className="px-5 py-4 align-top">
+                        <div className="flex max-w-xs flex-wrap gap-1">
+                          {item.sectors.slice(0, 3).map((sector: any) => (
+                            <span
+                              key={sector.slug}
+                              className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700"
+                            >
+                              {sector.name}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
 
-                        {item.sectors.length > 3 && (
-                          <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">
-                            +{item.sectors.length - 3}
+                      <td className="px-5 py-4 align-top">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            detectedStreet === "Belum cocok"
+                              ? "bg-red-50 text-red-700"
+                              : "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {detectedStreet}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-4 align-top">
+                        {item.image_url ? (
+                          <img
+                            src={item.image_url}
+                            alt={item.nama_usaha ?? "Foto UMKM"}
+                            className="h-14 w-20 rounded-xl object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+                            Belum ada
                           </span>
                         )}
-                      </div>
+                      </td>
 
-                      {item.old_sector && (
-                        <p className="mt-2 line-clamp-2 max-w-xs text-xs text-gray-400">
-                          Sektor lama: {item.old_sector}
-                        </p>
-                      )}
-                    </td>
+                      <td className="px-5 py-4 align-top">
+                        {item.wa ? (
+                          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                            Ada
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+                            Belum ada
+                          </span>
+                        )}
+                      </td>
 
-                    <td className="px-5 py-4 align-top">
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                        {extractStreetName(item.alamat)}
-                      </span>
-                    </td>
-
-                    <td className="px-5 py-4 align-top">
-                      {item.image_url ? (
-                        <img
-                          src={item.image_url}
-                          alt={item.nama_usaha ?? "Foto UMKM"}
-                          className="h-14 w-20 rounded-xl object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
-                          Belum ada
+                      <td className="px-5 py-4 align-top">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            item.is_ekraf
+                              ? "bg-green-50 text-green-700"
+                              : "bg-gray-100 text-gray-600"
+                          }`}
+                        >
+                          {item.is_ekraf ? "Ekraf" : "Non-Ekraf"}
                         </span>
-                      )}
-                    </td>
+                      </td>
 
-                    <td className="px-5 py-4 align-top">
-                      {item.wa ? (
-                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                          Ada
+                      <td className="max-w-sm px-5 py-4 align-top text-gray-600">
+                        {item.alamat ?? "-"}
+                      </td>
+
+                      <td className="px-5 py-4 align-top">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            item.is_active
+                              ? "bg-green-50 text-green-700"
+                              : "bg-red-50 text-red-700"
+                          }`}
+                        >
+                          {item.is_active ? "Aktif" : "Nonaktif"}
                         </span>
-                      ) : (
-                        <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
-                          Belum ada
-                        </span>
-                      )}
-                    </td>
+                      </td>
 
-                    <td className="px-5 py-4 align-top">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          item.is_ekraf
-                            ? "bg-green-50 text-green-700"
-                            : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {item.is_ekraf ? "Ekraf" : "Non-Ekraf"}
-                      </span>
-                    </td>
-
-                    <td className="max-w-sm px-5 py-4 align-top text-gray-600">
-                      {item.alamat ?? "-"}
-                    </td>
-
-                    <td className="px-5 py-4 align-top">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          item.is_active
-                            ? "bg-green-50 text-green-700"
-                            : "bg-red-50 text-red-700"
-                        }`}
-                      >
-                        {item.is_active ? "Aktif" : "Nonaktif"}
-                      </span>
-                    </td>
-
-                    <td className="px-5 py-4 align-top">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          item.gmaps_url
-                            ? "bg-blue-50 text-blue-700"
+                      <td className="px-5 py-4 align-top">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            item.gmaps_url
+                              ? "bg-blue-50 text-blue-700"
+                              : item.latitude !== null &&
+                                  item.latitude !== undefined &&
+                                  item.longitude !== null &&
+                                  item.longitude !== undefined
+                                ? "bg-amber-50 text-amber-700"
+                                : "bg-gray-100 text-gray-600"
+                          }`}
+                        >
+                          {item.gmaps_url
+                            ? "GMaps"
                             : item.latitude !== null &&
                                 item.latitude !== undefined &&
                                 item.longitude !== null &&
                                 item.longitude !== undefined
-                              ? "bg-amber-50 text-amber-700"
-                              : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {item.gmaps_url
-                          ? "GMaps"
-                          : item.latitude !== null &&
-                              item.latitude !== undefined &&
-                              item.longitude !== null &&
-                              item.longitude !== undefined
-                            ? "Koordinat"
-                            : "Belum ada"}
-                      </span>
-                    </td>
+                              ? "Koordinat"
+                              : "Belum ada"}
+                        </span>
+                      </td>
 
-                    <td className="px-5 py-4 align-top">
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(item)}
-                          className="rounded-xl border px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                        >
-                          Edit
-                        </button>
+                      <td className="px-5 py-4 align-top">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(item)}
+                            className="rounded-xl border px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                          >
+                            Edit
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => toggleStatus(item)}
-                          disabled={loadingId === item.id}
-                          className={`rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-50 ${
-                            item.is_active
-                              ? "bg-red-50 text-red-700 hover:bg-red-100"
-                              : "bg-green-50 text-green-700 hover:bg-green-100"
-                          }`}
-                        >
-                          {loadingId === item.id
-                            ? "Memproses..."
-                            : item.is_active
-                              ? "Nonaktifkan"
-                              : "Aktifkan"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          <button
+                            type="button"
+                            onClick={() => toggleStatus(item)}
+                            disabled={loadingId === item.id}
+                            className={`rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-50 ${
+                              item.is_active
+                                ? "bg-red-50 text-red-700 hover:bg-red-100"
+                                : "bg-green-50 text-green-700 hover:bg-green-100"
+                            }`}
+                          >
+                            {loadingId === item.id
+                              ? "Memproses..."
+                              : item.is_active
+                                ? "Nonaktifkan"
+                                : "Aktifkan"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -1201,10 +1245,6 @@ function AddModal({
             <h2 className="mt-1 text-2xl font-extrabold text-gray-950">
               Tambah UMKM Baru
             </h2>
-            <p className="mt-2 text-sm text-gray-600">
-              Jika memilih dua kategori, sistem akan menyimpan dua baris data
-              dan menampilkannya sebagai satu UMKM dengan dua badge.
-            </p>
           </div>
 
           <button
@@ -1301,10 +1341,6 @@ function EditModal({
             <h2 className="mt-1 text-2xl font-extrabold text-gray-950">
               {editItem.nama_usaha}
             </h2>
-            <p className="mt-2 text-sm text-gray-600">
-              Perubahan berlaku untuk semua baris data yang tergabung pada UMKM
-              ini.
-            </p>
           </div>
 
           <button
@@ -1315,14 +1351,6 @@ function EditModal({
             <X className="h-5 w-5" />
           </button>
         </div>
-
-        {editItem.rowIds?.length > 1 && (
-          <div className="mb-5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Data ini menggabungkan {editItem.rowIds.length} baris. Foto, nama,
-            alamat, kontak WhatsApp, kategori, status ekraf, RT/RW, koordinat,
-            dan Google Maps akan berlaku pada data terkait.
-          </div>
-        )}
 
         <form onSubmit={saveEdit} className="space-y-4">
           <BasicFields form={editForm} setForm={setEditForm} />
@@ -1342,13 +1370,6 @@ function EditModal({
               setEditForm((prev: any) => ({ ...prev, wa: value }))
             }
           />
-
-          {editItem.old_sector && (
-            <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-gray-600">
-              <span className="font-semibold text-gray-900">Sektor lama:</span>{" "}
-              {editItem.old_sector}
-            </div>
-          )}
 
           <ImageUploadField
             imageUrl={editForm.image_url}

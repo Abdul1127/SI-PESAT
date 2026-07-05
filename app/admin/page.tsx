@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 const TABLE_NAME = "data_2025";
+const STREET_TABLE_NAME = "jalan_sukun";
 
 function slugify(text: string) {
   return text
@@ -28,6 +29,7 @@ export default function AdminPage() {
   const router = useRouter();
 
   const [rawData, setRawData] = useState<any[]>([]);
+  const [streetData, setStreetData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -36,7 +38,7 @@ export default function AdminPage() {
     setLoading(true);
     setErrorMessage("");
 
-    const { data, error } = await supabase
+    const { data: umkmData, error: umkmError } = await supabase
       .from(TABLE_NAME)
       .select(`
         id,
@@ -56,13 +58,35 @@ export default function AdminPage() {
       `)
       .order("id", { ascending: true });
 
-    if (error) {
-      setErrorMessage(error.message);
+    if (umkmError) {
+      setErrorMessage(umkmError.message);
       setRawData([]);
-    } else {
-      setRawData(data ?? []);
+      setStreetData([]);
+      setLoading(false);
+      return;
     }
 
+    const { data: streets, error: streetError } = await supabase
+      .from(STREET_TABLE_NAME)
+      .select(`
+        id,
+        nama_jalan,
+        alias,
+        is_active
+      `)
+      .eq("is_active", true)
+      .order("nama_jalan", { ascending: true });
+
+    if (streetError) {
+      setErrorMessage(streetError.message);
+      setRawData([]);
+      setStreetData([]);
+      setLoading(false);
+      return;
+    }
+
+    setRawData(umkmData ?? []);
+    setStreetData(streets ?? []);
     setLoading(false);
   };
 
@@ -171,9 +195,6 @@ export default function AdminPage() {
           longitude: item.longitude,
           gmaps_url: item.gmaps_url,
           image_url: item.image_url,
-
-          // Supabase: whatsapp
-          // Frontend internal: wa
           wa: item.whatsapp,
 
           is_active: item.is_active,
@@ -325,7 +346,7 @@ export default function AdminPage() {
 
             <p className="mt-2 text-sm text-gray-600">
               Kelola data UMKM, kategori, status ekraf, foto, kontak WhatsApp,
-              dan kelengkapan lokasi.
+              jalan, dan kelengkapan lokasi.
             </p>
           </div>
 
@@ -395,9 +416,9 @@ export default function AdminPage() {
               <MapPin className="h-5 w-5" />
             </div>
 
-            <p className="text-sm text-gray-500">Punya GMaps</p>
+            <p className="text-sm text-gray-500">Kamus Jalan</p>
             <p className="mt-1 text-3xl font-extrabold text-gray-950">
-              {dashboardData.withMaps}
+              {streetData.length}
             </p>
           </div>
         </div>
@@ -455,9 +476,9 @@ export default function AdminPage() {
             </div>
 
             <p className="mt-4 text-sm leading-6 text-gray-600">
-              Kategori publik memakai kolom kategori_umkm. Sektor lama tetap
-              disimpan sebagai arsip, sedangkan is_ekraf dipakai untuk
-              membedakan UMKM ekraf dan non-ekraf.
+              Kategori publik memakai kolom kategori_umkm. Filter jalan akan
+              memakai tabel kamus jalan_sukun agar alamat yang tidak seragam
+              tetap bisa diarahkan ke jalan utama yang benar.
             </p>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -499,6 +520,7 @@ export default function AdminPage() {
 
         <AdminUmkmTable
           data={dashboardData.groupedData}
+          streets={streetData}
           onRefresh={fetchData}
         />
       </section>
