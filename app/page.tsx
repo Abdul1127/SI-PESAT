@@ -9,6 +9,7 @@ import UmkmMap from "@/components/UmkmMap";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 
 const TABLE_NAME = "data_2025";
+const STREET_TABLE_NAME = "jalan_sukun";
 
 function slugify(text: string) {
   return text
@@ -53,6 +54,17 @@ async function HomeContent() {
     .eq("is_active", true)
     .order("id", { ascending: true });
 
+  const { data: streetData } = await supabase
+    .from(STREET_TABLE_NAME)
+    .select(`
+      id,
+      nama_jalan,
+      alias,
+      is_active
+    `)
+    .eq("is_active", true)
+    .order("nama_jalan", { ascending: true });
+
   const rawUmkm =
     data?.map((item: any) => {
       const kategoriUtama =
@@ -88,9 +100,6 @@ async function HomeContent() {
 
         gmaps_url: mapsUrl,
         image_url: item.image_url,
-
-        // Supabase: whatsapp
-        // Frontend internal: wa
         wa: item.whatsapp,
 
         kategori_umkm: item.kategori_umkm,
@@ -222,8 +231,8 @@ async function HomeContent() {
               </h2>
 
               <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600">
-                Gunakan pencarian dan filter kategori untuk menemukan usaha
-                lokal yang sesuai dengan kebutuhan Anda.
+                Gunakan pencarian, filter kategori, dan filter jalan untuk
+                menemukan usaha lokal yang sesuai dengan kebutuhan Anda.
               </p>
             </div>
 
@@ -235,7 +244,7 @@ async function HomeContent() {
             </div>
           </div>
 
-          <UmkmList umkm={umkm} />
+          <UmkmList umkm={umkm} streets={streetData ?? []} />
 
           <UmkmMap umkm={umkm} />
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ExternalLink,
   Info,
@@ -41,9 +41,87 @@ function buildWhatsappUrl(item: any) {
   return `https://wa.me/${wa}?text=${encodeURIComponent(message)}`;
 }
 
-export default function UmkmList({ umkm }: { umkm: any[] }) {
+function normalizeAddressText(value: string | null | undefined) {
+  if (!value) return "";
+
+  return value
+    .toLowerCase()
+    .replace(/\bjls\b/g, "jl")
+    .replace(/\bjln\b/g, "jl")
+    .replace(/\bjalan\b/g, "jl")
+    .replace(/\bkl\b/g, "jl")
+    .replace(/\bkln\b/g, "jl")
+    .replace(/\bgg\b/g, "gang")
+    .replace(/\bno\b/g, "nomor")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeAliasText(value: string | null | undefined) {
+  if (!value) return "";
+
+  return normalizeAddressText(value)
+    .replace(/^jl\s+/, "")
+    .replace(/^gang\s+/, "")
+    .trim();
+}
+
+function getAddressStart(value: string | null | undefined) {
+  const normalized = normalizeAddressText(value);
+
+  if (!normalized) return "";
+
+  return normalized
+    .split(
+      /\bkel\b|\bkelurahan\b|\bkec\b|\bkecamatan\b|\bkota\b|\bmalang\b|\bjatim\b|,/i
+    )[0]
+    .trim();
+}
+
+function isAddressMatchStreet(address: string | null | undefined, street: any) {
+  const addressStart = getAddressStart(address);
+
+  if (!addressStart || !street) return false;
+
+  const candidates = [street.nama_jalan, ...(street.alias ?? [])]
+    .map((item) => normalizeAliasText(item))
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+
+  return candidates.some((candidate) => {
+    const candidateWithJl = `jl ${candidate}`;
+
+    return (
+      addressStart === candidate ||
+      addressStart === candidateWithJl ||
+      addressStart.startsWith(`${candidate} `) ||
+      addressStart.startsWith(`${candidateWithJl} `)
+    );
+  });
+}
+
+function detectStreetName(
+  address: string | null | undefined,
+  streets: any[] = []
+) {
+  const matchedStreet = streets.find((street) =>
+    isAddressMatchStreet(address, street)
+  );
+
+  return matchedStreet?.nama_jalan ?? null;
+}
+
+export default function UmkmList({
+  umkm,
+  streets = [],
+}: {
+  umkm: any[];
+  streets?: any[];
+}) {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("semua");
+  const [selectedStreet, setSelectedStreet] = useState("semua");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedUmkm, setSelectedUmkm] = useState<any | null>(null);
 
@@ -64,8 +142,15 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
     ).values()
   );
 
+  const activeStreets = useMemo(() => {
+    return [...streets].sort((a, b) =>
+      String(a.nama_jalan).localeCompare(String(b.nama_jalan))
+    );
+  }, [streets]);
+
   const filteredUmkm = umkm.filter((item) => {
     const keyword = search.toLowerCase();
+    const detectedStreet = detectStreetName(item.short_address, activeStreets);
 
     const matchSearch =
       item.business_name?.toLowerCase().includes(keyword) ||
@@ -73,6 +158,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
       item.description?.toLowerCase().includes(keyword) ||
       item.rt_rw?.toLowerCase().includes(keyword) ||
       item.wa?.toLowerCase().includes(keyword) ||
+      detectedStreet?.toLowerCase().includes(keyword) ||
       item.sectors?.some((sector: any) =>
         sector.name?.toLowerCase().includes(keyword)
       );
@@ -81,7 +167,15 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
       selectedCategory === "semua" ||
       item.sectors?.some((sector: any) => sector.slug === selectedCategory);
 
-    return matchSearch && matchCategory;
+    const selectedStreetItem = activeStreets.find(
+      (street) => String(street.id) === selectedStreet
+    );
+
+    const matchStreet =
+      selectedStreet === "semua" ||
+      isAddressMatchStreet(item.short_address, selectedStreetItem);
+
+    return matchSearch && matchCategory && matchStreet;
   });
 
   const totalPages = Math.max(1, Math.ceil(filteredUmkm.length / itemsPerPage));
@@ -107,6 +201,18 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
 
   const changeCategory = (slug: string) => {
     setSelectedCategory(slug);
+    setCurrentPage(1);
+  };
+
+  const changeStreet = (streetId: string) => {
+    setSelectedStreet(streetId);
+    setCurrentPage(1);
+  };
+
+  const resetFilters = () => {
+    setSearch("");
+    setSelectedCategory("semua");
+    setSelectedStreet("semua");
     setCurrentPage(1);
   };
 
@@ -175,7 +281,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
               })}
             </select>
 
-            <div className="hidden space-y-2 lg:block">
+            <div className="hidden max-h-80 space-y-2 overflow-y-auto pr-1 lg:block">
               <button
                 onClick={() => changeCategory("semua")}
                 className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-medium ${
@@ -213,6 +319,39 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
                 );
               })}
             </div>
+
+            <p className="mb-3 mt-5 font-semibold text-gray-900">Jalan</p>
+
+            <select
+              value={selectedStreet}
+              onChange={(e) => changeStreet(e.target.value)}
+              className="w-full rounded-xl border bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+            >
+              <option value="semua">Semua jalan</option>
+              {activeStreets.map((street) => {
+                const count = umkm.filter((item) =>
+                  isAddressMatchStreet(item.short_address, street)
+                ).length;
+
+                return (
+                  <option key={street.id} value={String(street.id)}>
+                    {street.nama_jalan} ({count})
+                  </option>
+                );
+              })}
+            </select>
+
+            {(search ||
+              selectedCategory !== "semua" ||
+              selectedStreet !== "semua") && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="mt-4 w-full rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-slate-200"
+              >
+                Reset filter
+              </button>
+            )}
           </div>
 
           <div className="min-w-0 rounded-3xl border bg-white p-4 shadow-sm md:p-5">
@@ -240,10 +379,10 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
               <div className="flex items-center justify-between rounded-2xl bg-indigo-50 p-3">
                 <span className="flex items-center gap-2 text-sm text-gray-800">
                   <Tags className="h-4 w-4 text-indigo-600" />
-                  Kategori
+                  Jalan
                 </span>
                 <span className="font-bold !text-gray-950">
-                  {categories.length}
+                  {activeStreets.length}
                 </span>
               </div>
             </div>
@@ -265,6 +404,10 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
           <div className="space-y-3">
             {currentUmkm.map((item) => {
               const whatsappUrl = buildWhatsappUrl(item);
+              const detectedStreet = detectStreetName(
+                item.short_address,
+                activeStreets
+              );
 
               return (
                 <div
@@ -313,6 +456,12 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
                         ) : (
                           <span className="inline-block rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
                             Non-Ekraf
+                          </span>
+                        )}
+
+                        {detectedStreet && (
+                          <span className="inline-block rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                            {detectedStreet}
                           </span>
                         )}
                       </div>
@@ -384,6 +533,7 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
       {selectedUmkm && (
         <UmkmDetailModal
           item={selectedUmkm}
+          streets={activeStreets}
           onClose={() => setSelectedUmkm(null)}
         />
       )}
@@ -393,12 +543,15 @@ export default function UmkmList({ umkm }: { umkm: any[] }) {
 
 function UmkmDetailModal({
   item,
+  streets,
   onClose,
 }: {
   item: any;
+  streets: any[];
   onClose: () => void;
 }) {
   const whatsappUrl = buildWhatsappUrl(item);
+  const detectedStreet = detectStreetName(item.short_address, streets);
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4 py-6">
@@ -451,6 +604,12 @@ function UmkmDetailModal({
             ) : (
               <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
                 Non-Ekraf
+              </span>
+            )}
+
+            {detectedStreet && (
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                {detectedStreet}
               </span>
             )}
           </div>
