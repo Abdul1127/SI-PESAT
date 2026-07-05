@@ -34,9 +34,12 @@ export default function AdminPage() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const fetchData = async () => {
+const fetchData = async (showFullLoading = true) => {
+  if (showFullLoading) {
     setLoading(true);
-    setErrorMessage("");
+  }
+
+  setErrorMessage("");
 
     const { data: umkmData, error: umkmError } = await supabase
       .from(TABLE_NAME)
@@ -521,7 +524,7 @@ export default function AdminPage() {
         <AdminUmkmTable
           data={dashboardData.groupedData}
           streets={streetData}
-          onRefresh={fetchData}
+          onRefresh={() => fetchData(false)}
         />
       </section>
     </main>
