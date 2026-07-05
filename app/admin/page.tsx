@@ -51,7 +51,7 @@ export default function AdminPage() {
         rt_rw,
         gmaps_url,
         image_url,
-        wa,
+        whatsapp,
         is_active
       `)
       .order("id", { ascending: true });
@@ -121,15 +121,15 @@ export default function AdminPage() {
     ).length;
 
     const withMaps = rawData.filter(
-      (item: any) => item.gmaps_url && item.gmaps_url.trim() !== ""
+      (item: any) => item.gmaps_url && String(item.gmaps_url).trim() !== ""
     ).length;
 
     const withImages = rawData.filter(
-      (item: any) => item.image_url && item.image_url.trim() !== ""
+      (item: any) => item.image_url && String(item.image_url).trim() !== ""
     ).length;
 
-    const withWa = rawData.filter(
-      (item: any) => item.wa && String(item.wa).trim() !== ""
+    const withWhatsapp = rawData.filter(
+      (item: any) => item.whatsapp && String(item.whatsapp).trim() !== ""
     ).length;
 
     const withCoordinate = rawData.filter(
@@ -171,7 +171,10 @@ export default function AdminPage() {
           longitude: item.longitude,
           gmaps_url: item.gmaps_url,
           image_url: item.image_url,
-          wa: item.wa,
+
+          // Supabase: whatsapp
+          // Frontend internal: wa
+          wa: item.whatsapp,
 
           is_active: item.is_active,
           kategori_umkm: item.kategori_umkm,
@@ -205,8 +208,8 @@ export default function AdminPage() {
           current.image_url = item.image_url;
         }
 
-        if (!current.wa && item.wa) {
-          current.wa = item.wa;
+        if (!current.wa && item.whatsapp) {
+          current.wa = item.whatsapp;
         }
 
         if (!current.latitude && item.latitude) {
@@ -250,8 +253,8 @@ export default function AdminPage() {
     const imagePercentage =
       totalData > 0 ? Math.round((withImages / totalData) * 100) : 0;
 
-    const waPercentage =
-      totalData > 0 ? Math.round((withWa / totalData) * 100) : 0;
+    const whatsappPercentage =
+      totalData > 0 ? Math.round((withWhatsapp / totalData) * 100) : 0;
 
     const ekrafPercentage =
       totalData > 0 ? Math.round((ekrafData / totalData) * 100) : 0;
@@ -265,13 +268,13 @@ export default function AdminPage() {
       nonEkrafData,
       withMaps,
       withImages,
-      withWa,
+      withWhatsapp,
       withCoordinate,
       groupedData,
       coordinatePercentage,
       mapsPercentage,
       imagePercentage,
-      waPercentage,
+      whatsappPercentage,
       ekrafPercentage,
     };
   }, [rawData]);
@@ -407,79 +410,41 @@ export default function AdminPage() {
             </div>
 
             <div className="mt-5 space-y-3">
-              <div>
-                <div className="mb-1 flex justify-between text-sm">
-                  <span className="text-gray-600">Memiliki koordinat</span>
-                  <span className="font-semibold text-gray-900">
-                    {dashboardData.withCoordinate} / {dashboardData.totalData}
-                  </span>
-                </div>
+              <ProgressBar
+                label="Memiliki koordinat"
+                value={dashboardData.withCoordinate}
+                total={dashboardData.totalData}
+                percentage={dashboardData.coordinatePercentage}
+                barClassName="bg-blue-600"
+                trackClassName="bg-gray-100"
+              />
 
-                <div className="h-3 overflow-hidden rounded-full bg-gray-100">
-                  <div
-                    className="h-full rounded-full bg-blue-600"
-                    style={{
-                      width: `${dashboardData.coordinatePercentage}%`,
-                    }}
-                  />
-                </div>
-              </div>
+              <ProgressBar
+                label="Memiliki Google Maps resmi"
+                value={dashboardData.withMaps}
+                total={dashboardData.totalData}
+                percentage={dashboardData.mapsPercentage}
+                barClassName="bg-green-600"
+                trackClassName="bg-green-100"
+              />
 
-              <div>
-                <div className="mb-1 flex justify-between text-sm">
-                  <span className="text-gray-600">
-                    Memiliki Google Maps resmi
-                  </span>
-                  <span className="font-semibold text-gray-900">
-                    {dashboardData.withMaps} / {dashboardData.totalData}
-                  </span>
-                </div>
+              <ProgressBar
+                label="Memiliki foto"
+                value={dashboardData.withImages}
+                total={dashboardData.totalData}
+                percentage={dashboardData.imagePercentage}
+                barClassName="bg-purple-600"
+                trackClassName="bg-purple-100"
+              />
 
-                <div className="h-3 overflow-hidden rounded-full bg-green-100">
-                  <div
-                    className="h-full rounded-full bg-green-600"
-                    style={{
-                      width: `${dashboardData.mapsPercentage}%`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-1 flex justify-between text-sm">
-                  <span className="text-gray-600">Memiliki foto</span>
-                  <span className="font-semibold text-gray-900">
-                    {dashboardData.withImages} / {dashboardData.totalData}
-                  </span>
-                </div>
-
-                <div className="h-3 overflow-hidden rounded-full bg-purple-100">
-                  <div
-                    className="h-full rounded-full bg-purple-600"
-                    style={{
-                      width: `${dashboardData.imagePercentage}%`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-1 flex justify-between text-sm">
-                  <span className="text-gray-600">Memiliki WhatsApp</span>
-                  <span className="font-semibold text-gray-900">
-                    {dashboardData.withWa} / {dashboardData.totalData}
-                  </span>
-                </div>
-
-                <div className="h-3 overflow-hidden rounded-full bg-emerald-100">
-                  <div
-                    className="h-full rounded-full bg-emerald-600"
-                    style={{
-                      width: `${dashboardData.waPercentage}%`,
-                    }}
-                  />
-                </div>
-              </div>
+              <ProgressBar
+                label="Memiliki WhatsApp"
+                value={dashboardData.withWhatsapp}
+                total={dashboardData.totalData}
+                percentage={dashboardData.whatsappPercentage}
+                barClassName="bg-emerald-600"
+                trackClassName="bg-emerald-100"
+              />
             </div>
           </div>
 
@@ -519,21 +484,15 @@ export default function AdminPage() {
             </div>
 
             <div className="mt-4">
-              <div className="mb-1 flex justify-between text-sm">
-                <span className="text-gray-600">Proporsi ekraf</span>
-                <span className="font-semibold text-gray-900">
-                  {dashboardData.ekrafPercentage}%
-                </span>
-              </div>
-
-              <div className="h-3 overflow-hidden rounded-full bg-gray-100">
-                <div
-                  className="h-full rounded-full bg-green-600"
-                  style={{
-                    width: `${dashboardData.ekrafPercentage}%`,
-                  }}
-                />
-              </div>
+              <ProgressBar
+                label="Proporsi ekraf"
+                value={dashboardData.ekrafData}
+                total={dashboardData.totalData}
+                percentage={dashboardData.ekrafPercentage}
+                barClassName="bg-green-600"
+                trackClassName="bg-gray-100"
+                showCount={false}
+              />
             </div>
           </div>
         </div>
@@ -544,5 +503,43 @@ export default function AdminPage() {
         />
       </section>
     </main>
+  );
+}
+
+function ProgressBar({
+  label,
+  value,
+  total,
+  percentage,
+  barClassName,
+  trackClassName,
+  showCount = true,
+}: {
+  label: string;
+  value: number;
+  total: number;
+  percentage: number;
+  barClassName: string;
+  trackClassName: string;
+  showCount?: boolean;
+}) {
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-sm">
+        <span className="text-gray-600">{label}</span>
+        <span className="font-semibold text-gray-900">
+          {showCount ? `${value} / ${total}` : `${percentage}%`}
+        </span>
+      </div>
+
+      <div className={`h-3 overflow-hidden rounded-full ${trackClassName}`}>
+        <div
+          className={`h-full rounded-full ${barClassName}`}
+          style={{
+            width: `${percentage}%`,
+          }}
+        />
+      </div>
+    </div>
   );
 }

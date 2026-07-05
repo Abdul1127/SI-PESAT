@@ -518,7 +518,7 @@ export default function AdminUmkmTable({
       longitude: longitudeValue,
       gmaps_url: gmapsUrl === "" ? null : gmapsUrl,
       image_url: null,
-      wa: normalizedWa,
+      whatsapp: normalizedWa,
       search_text: buildSearchText({
         nama_usaha: namaUsaha,
         alamat,
@@ -604,7 +604,7 @@ export default function AdminUmkmTable({
         editForm.gmaps_url.trim() === "" ? null : editForm.gmaps_url.trim(),
       image_url:
         editForm.image_url.trim() === "" ? null : editForm.image_url.trim(),
-      wa: normalizedWa,
+      whatsapp: normalizedWa,
     };
 
     const { error: commonError } = await supabase
@@ -690,7 +690,7 @@ export default function AdminUmkmTable({
               editForm.image_url.trim() === ""
                 ? null
                 : editForm.image_url.trim(),
-            wa: normalizedWa,
+            whatsapp: normalizedWa,
             search_text: buildSearchText({
               nama_usaha: editForm.nama_usaha.trim(),
               alamat: editForm.alamat.trim(),
