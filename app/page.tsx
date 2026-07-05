@@ -47,6 +47,7 @@ async function HomeContent() {
       rt_rw,
       gmaps_url,
       image_url,
+      wa,
       is_active
     `)
     .eq("is_active", true)
@@ -87,6 +88,7 @@ async function HomeContent() {
 
         gmaps_url: mapsUrl,
         image_url: item.image_url,
+        wa: item.wa,
 
         kategori_umkm: item.kategori_umkm,
         old_sector: item.sektor,
@@ -142,6 +144,10 @@ async function HomeContent() {
 
       if (!current.image_url && item.image_url) {
         current.image_url = item.image_url;
+      }
+
+      if (!current.wa && item.wa) {
+        current.wa = item.wa;
       }
 
       if (!current.latitude && item.latitude) {

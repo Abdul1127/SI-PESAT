@@ -51,6 +51,7 @@ export default function AdminPage() {
         rt_rw,
         gmaps_url,
         image_url,
+        wa,
         is_active
       `)
       .order("id", { ascending: true });
@@ -127,6 +128,10 @@ export default function AdminPage() {
       (item: any) => item.image_url && item.image_url.trim() !== ""
     ).length;
 
+    const withWa = rawData.filter(
+      (item: any) => item.wa && String(item.wa).trim() !== ""
+    ).length;
+
     const withCoordinate = rawData.filter(
       (item: any) => item.latitude !== null && item.longitude !== null
     ).length;
@@ -166,6 +171,7 @@ export default function AdminPage() {
           longitude: item.longitude,
           gmaps_url: item.gmaps_url,
           image_url: item.image_url,
+          wa: item.wa,
 
           is_active: item.is_active,
           kategori_umkm: item.kategori_umkm,
@@ -197,6 +203,10 @@ export default function AdminPage() {
 
         if (!current.image_url && item.image_url) {
           current.image_url = item.image_url;
+        }
+
+        if (!current.wa && item.wa) {
+          current.wa = item.wa;
         }
 
         if (!current.latitude && item.latitude) {
@@ -240,6 +250,9 @@ export default function AdminPage() {
     const imagePercentage =
       totalData > 0 ? Math.round((withImages / totalData) * 100) : 0;
 
+    const waPercentage =
+      totalData > 0 ? Math.round((withWa / totalData) * 100) : 0;
+
     const ekrafPercentage =
       totalData > 0 ? Math.round((ekrafData / totalData) * 100) : 0;
 
@@ -252,11 +265,13 @@ export default function AdminPage() {
       nonEkrafData,
       withMaps,
       withImages,
+      withWa,
       withCoordinate,
       groupedData,
       coordinatePercentage,
       mapsPercentage,
       imagePercentage,
+      waPercentage,
       ekrafPercentage,
     };
   }, [rawData]);
@@ -306,8 +321,8 @@ export default function AdminPage() {
             </h1>
 
             <p className="mt-2 text-sm text-gray-600">
-              Kelola data UMKM, kategori, status ekraf, foto, dan kelengkapan
-              lokasi.
+              Kelola data UMKM, kategori, status ekraf, foto, kontak WhatsApp,
+              dan kelengkapan lokasi.
             </p>
           </div>
 
@@ -443,6 +458,24 @@ export default function AdminPage() {
                     className="h-full rounded-full bg-purple-600"
                     style={{
                       width: `${dashboardData.imagePercentage}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-1 flex justify-between text-sm">
+                  <span className="text-gray-600">Memiliki WhatsApp</span>
+                  <span className="font-semibold text-gray-900">
+                    {dashboardData.withWa} / {dashboardData.totalData}
+                  </span>
+                </div>
+
+                <div className="h-3 overflow-hidden rounded-full bg-emerald-100">
+                  <div
+                    className="h-full rounded-full bg-emerald-600"
+                    style={{
+                      width: `${dashboardData.waPercentage}%`,
                     }}
                   />
                 </div>

@@ -80,6 +80,7 @@ export default function AdminUmkmTable({
     latitude: "",
     longitude: "",
     gmaps_url: "",
+    wa: "",
   };
 
   const [addForm, setAddForm] = useState(emptyForm);
@@ -96,6 +97,7 @@ export default function AdminUmkmTable({
     longitude: "",
     gmaps_url: "",
     image_url: "",
+    wa: "",
   });
 
   const itemsPerPage = 15;
@@ -128,6 +130,7 @@ export default function AdminUmkmTable({
         item.alamat?.toLowerCase().includes(keyword) ||
         item.kategori_umkm?.toLowerCase().includes(keyword) ||
         item.old_sector?.toLowerCase().includes(keyword) ||
+        item.wa?.toLowerCase().includes(keyword) ||
         item.descriptions?.some((desc: string) =>
           desc.toLowerCase().includes(keyword)
         ) ||
@@ -284,6 +287,22 @@ export default function AdminUmkmTable({
     return `RW ${rw}`;
   };
 
+  const normalizeWa = (value: string) => {
+    const onlyNumber = value.replace(/\D/g, "");
+
+    if (onlyNumber.trim() === "") return null;
+
+    if (onlyNumber.startsWith("0")) {
+      return `62${onlyNumber.slice(1)}`;
+    }
+
+    if (onlyNumber.startsWith("8")) {
+      return `62${onlyNumber}`;
+    }
+
+    return onlyNumber;
+  };
+
   const buildSearchText = (payload: {
     nama_usaha: string;
     alamat: string;
@@ -372,6 +391,7 @@ export default function AdminUmkmTable({
           : "",
       gmaps_url: item.gmaps_url ?? "",
       image_url: item.image_url ?? "",
+      wa: item.wa ?? "",
     });
   };
 
@@ -463,6 +483,7 @@ export default function AdminUmkmTable({
 
     const rtRw = buildRtRw(addForm.rt, addForm.rw);
     const gmapsUrl = addForm.gmaps_url.trim();
+    const normalizedWa = normalizeWa(addForm.wa);
 
     if (!namaUsaha) {
       setMessage("Gagal menambah data: nama usaha wajib diisi.");
@@ -497,6 +518,7 @@ export default function AdminUmkmTable({
       longitude: longitudeValue,
       gmaps_url: gmapsUrl === "" ? null : gmapsUrl,
       image_url: null,
+      wa: normalizedWa,
       search_text: buildSearchText({
         nama_usaha: namaUsaha,
         alamat,
@@ -542,6 +564,7 @@ export default function AdminUmkmTable({
 
     const latitudeValue = parseCoordinate(editForm.latitude);
     const longitudeValue = parseCoordinate(editForm.longitude);
+    const normalizedWa = normalizeWa(editForm.wa);
 
     if (latitudeValue === "invalid") {
       setMessage("Gagal menyimpan: latitude harus berupa angka.");
@@ -581,6 +604,7 @@ export default function AdminUmkmTable({
         editForm.gmaps_url.trim() === "" ? null : editForm.gmaps_url.trim(),
       image_url:
         editForm.image_url.trim() === "" ? null : editForm.image_url.trim(),
+      wa: normalizedWa,
     };
 
     const { error: commonError } = await supabase
@@ -666,6 +690,7 @@ export default function AdminUmkmTable({
               editForm.image_url.trim() === ""
                 ? null
                 : editForm.image_url.trim(),
+            wa: normalizedWa,
             search_text: buildSearchText({
               nama_usaha: editForm.nama_usaha.trim(),
               alamat: editForm.alamat.trim(),
@@ -704,7 +729,7 @@ export default function AdminUmkmTable({
               <p className="text-lg font-bold text-gray-950">Data UMKM</p>
               <p className="mt-1 text-sm text-gray-600">
                 Cari, tambah data baru, atur kategori UMKM, status ekraf, foto,
-                lokasi, dan status publikasi data.
+                kontak WhatsApp, lokasi, dan status publikasi data.
               </p>
             </div>
 
@@ -826,12 +851,13 @@ export default function AdminUmkmTable({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1200px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[1300px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b bg-slate-50 text-gray-600">
                 <th className="px-5 py-4 font-semibold">Nama Usaha</th>
                 <th className="px-5 py-4 font-semibold">Kategori</th>
                 <th className="px-5 py-4 font-semibold">Foto</th>
+                <th className="px-5 py-4 font-semibold">WA</th>
                 <th className="px-5 py-4 font-semibold">Ekraf</th>
                 <th className="px-5 py-4 font-semibold">Alamat</th>
                 <th className="px-5 py-4 font-semibold">Status</th>
@@ -844,7 +870,7 @@ export default function AdminUmkmTable({
               {currentData.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     className="px-5 py-10 text-center text-gray-500"
                   >
                     Data tidak ditemukan.
@@ -910,6 +936,18 @@ export default function AdminUmkmTable({
                           className="h-14 w-20 rounded-xl object-cover"
                           loading="lazy"
                         />
+                      ) : (
+                        <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+                          Belum ada
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="px-5 py-4 align-top">
+                      {item.wa ? (
+                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                          Ada
+                        </span>
                       ) : (
                         <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
                           Belum ada
@@ -1104,6 +1142,13 @@ function AddModal({
             }
           />
 
+          <WaField
+            value={addForm.wa}
+            onChange={(value) =>
+              setAddForm((prev: any) => ({ ...prev, wa: value }))
+            }
+          />
+
           <RtRwSelect
             rt={addForm.rt}
             rw={addForm.rw}
@@ -1184,8 +1229,8 @@ function EditModal({
         {editItem.rowIds?.length > 1 && (
           <div className="mb-5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
             Data ini menggabungkan {editItem.rowIds.length} baris. Foto, nama,
-            alamat, kategori, status ekraf, RT/RW, koordinat, dan Google Maps
-            akan berlaku pada data terkait.
+            alamat, kontak WhatsApp, kategori, status ekraf, RT/RW, koordinat,
+            dan Google Maps akan berlaku pada data terkait.
           </div>
         )}
 
@@ -1198,6 +1243,13 @@ function EditModal({
             value={editForm.is_ekraf}
             onChange={(value) =>
               setEditForm((prev: any) => ({ ...prev, is_ekraf: value }))
+            }
+          />
+
+          <WaField
+            value={editForm.wa}
+            onChange={(value) =>
+              setEditForm((prev: any) => ({ ...prev, wa: value }))
             }
           />
 
@@ -1404,6 +1456,35 @@ function EkrafSelect({
         <option value="false">Non-Ekraf</option>
         <option value="true">Ekraf</option>
       </select>
+    </div>
+  );
+}
+
+function WaField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <label className="mb-2 block text-sm font-semibold text-gray-900">
+        Nomor WhatsApp
+      </label>
+
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Contoh: 081234567890 atau 6281234567890"
+        className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+      />
+
+      <p className="mt-2 text-xs leading-5 text-gray-500">
+        Boleh isi format 08..., +62..., atau 628.... Sistem akan menyimpan dalam
+        format 628....
+      </p>
     </div>
   );
 }
