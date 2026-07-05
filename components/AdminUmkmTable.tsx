@@ -42,6 +42,41 @@ const RW_OPTIONS = Array.from({ length: 10 }, (_, index) =>
   String(index + 1).padStart(3, "0")
 );
 
+function extractStreetName(address: string | null | undefined) {
+  if (!address || address.trim() === "") {
+    return "Alamat belum jelas";
+  }
+
+  const cleaned = address.replace(/\s+/g, " ").trim();
+
+  const streetMatch = cleaned.match(
+    /\b(?:Jl\.?|Jln\.?|Jalan)\s+([^,]+?)(?:\s+(?:No\.?|Nomor)\s*[\w/-]+|\s+RT\b|\s+RW\b|,|$)/i
+  );
+
+  if (streetMatch?.[1]) {
+    const streetName = streetMatch[1]
+      .replace(/\s+/g, " ")
+      .replace(/[.,;:]+$/g, "")
+      .trim();
+
+    if (streetName) {
+      return `Jl. ${streetName}`;
+    }
+  }
+
+  const firstPart = cleaned.split(",")[0]?.trim();
+
+  if (firstPart) {
+    return firstPart;
+  }
+
+  return "Alamat belum jelas";
+}
+
+function streetKey(value: string) {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
 export default function AdminUmkmTable({
   data,
   onRefresh,
@@ -55,6 +90,7 @@ export default function AdminUmkmTable({
   const [categoryFilter, setCategoryFilter] = useState("semua");
   const [locationFilter, setLocationFilter] = useState("semua");
   const [photoFilter, setPhotoFilter] = useState("semua");
+  const [streetFilter, setStreetFilter] = useState("semua");
   const [currentPage, setCurrentPage] = useState(1);
 
   const [loadingId, setLoadingId] = useState<number | null>(null);
@@ -121,16 +157,38 @@ export default function AdminUmkmTable({
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [data]);
 
+  const adminStreets = useMemo(() => {
+    const streetMap = new Map<string, string>();
+
+    data.forEach((item) => {
+      const street = extractStreetName(item.alamat);
+
+      if (street && street !== "Alamat belum jelas") {
+        streetMap.set(streetKey(street), street);
+      }
+    });
+
+    return Array.from(streetMap.entries())
+      .map(([key, name]) => ({
+        key,
+        name,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [data]);
+
   const filteredData = useMemo(() => {
     const keyword = search.toLowerCase();
 
     return data.filter((item) => {
+      const extractedStreet = extractStreetName(item.alamat);
+
       const matchSearch =
         item.nama_usaha?.toLowerCase().includes(keyword) ||
         item.alamat?.toLowerCase().includes(keyword) ||
         item.kategori_umkm?.toLowerCase().includes(keyword) ||
         item.old_sector?.toLowerCase().includes(keyword) ||
         item.wa?.toLowerCase().includes(keyword) ||
+        extractedStreet.toLowerCase().includes(keyword) ||
         item.descriptions?.some((desc: string) =>
           desc.toLowerCase().includes(keyword)
         ) ||
@@ -175,13 +233,17 @@ export default function AdminUmkmTable({
         (photoFilter === "ada-foto" && hasPhoto) ||
         (photoFilter === "belum-ada-foto" && !hasPhoto);
 
+      const matchStreet =
+        streetFilter === "semua" || streetKey(extractedStreet) === streetFilter;
+
       return (
         matchSearch &&
         matchStatus &&
         matchEkraf &&
         matchCategory &&
         matchLocation &&
-        matchPhoto
+        matchPhoto &&
+        matchStreet
       );
     });
   }, [
@@ -192,6 +254,7 @@ export default function AdminUmkmTable({
     categoryFilter,
     locationFilter,
     photoFilter,
+    streetFilter,
   ]);
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
@@ -235,10 +298,16 @@ export default function AdminUmkmTable({
     setCurrentPage(1);
   };
 
+  const changeStreetFilter = (value: string) => {
+    setStreetFilter(value);
+    setCurrentPage(1);
+  };
+
   const resetExtraFilters = () => {
     setCategoryFilter("semua");
     setLocationFilter("semua");
     setPhotoFilter("semua");
+    setStreetFilter("semua");
     setCurrentPage(1);
   };
 
@@ -729,7 +798,7 @@ export default function AdminUmkmTable({
               <p className="text-lg font-bold text-gray-950">Data UMKM</p>
               <p className="mt-1 text-sm text-gray-600">
                 Cari, tambah data baru, atur kategori UMKM, status ekraf, foto,
-                kontak WhatsApp, lokasi, dan status publikasi data.
+                kontak WhatsApp, lokasi, jalan, dan status publikasi data.
               </p>
             </div>
 
@@ -788,6 +857,19 @@ export default function AdminUmkmTable({
               </select>
 
               <select
+                value={streetFilter}
+                onChange={(e) => changeStreetFilter(e.target.value)}
+                className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+              >
+                <option value="semua">Semua jalan</option>
+                {adminStreets.map((street) => (
+                  <option key={street.key} value={street.key}>
+                    {street.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
                 value={locationFilter}
                 onChange={(e) => changeLocationFilter(e.target.value)}
                 className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
@@ -838,7 +920,8 @@ export default function AdminUmkmTable({
 
             {(categoryFilter !== "semua" ||
               locationFilter !== "semua" ||
-              photoFilter !== "semua") && (
+              photoFilter !== "semua" ||
+              streetFilter !== "semua") && (
               <button
                 type="button"
                 onClick={resetExtraFilters}
@@ -851,11 +934,12 @@ export default function AdminUmkmTable({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1300px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[1400px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b bg-slate-50 text-gray-600">
                 <th className="px-5 py-4 font-semibold">Nama Usaha</th>
                 <th className="px-5 py-4 font-semibold">Kategori</th>
+                <th className="px-5 py-4 font-semibold">Jalan</th>
                 <th className="px-5 py-4 font-semibold">Foto</th>
                 <th className="px-5 py-4 font-semibold">WA</th>
                 <th className="px-5 py-4 font-semibold">Ekraf</th>
@@ -870,7 +954,7 @@ export default function AdminUmkmTable({
               {currentData.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-5 py-10 text-center text-gray-500"
                   >
                     Data tidak ditemukan.
@@ -926,6 +1010,12 @@ export default function AdminUmkmTable({
                           Sektor lama: {item.old_sector}
                         </p>
                       )}
+                    </td>
+
+                    <td className="px-5 py-4 align-top">
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                        {extractStreetName(item.alamat)}
+                      </span>
                     </td>
 
                     <td className="px-5 py-4 align-top">
