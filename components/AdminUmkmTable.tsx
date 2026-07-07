@@ -2,7 +2,6 @@
 
 import { useMemo, useRef, useState } from "react";
 import {
-  Camera,
   Edit,
   ExternalLink,
   Image as ImageIcon,
@@ -143,13 +142,6 @@ function detectStreetName(
   return matchedStreet?.nama_jalan ?? "Belum cocok";
 }
 
-function slugify(text: string) {
-  return String(text)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
-
 function getItemName(item: any) {
   return item.business_name ?? item.nama_usaha ?? "";
 }
@@ -248,6 +240,8 @@ export default function AdminUmkmTable({
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("semua");
   const [streetFilter, setStreetFilter] = useState("semua");
+  const [rtFilter, setRtFilter] = useState("semua");
+  const [rwFilter, setRwFilter] = useState("semua");
   const [statusFilter, setStatusFilter] = useState("semua");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageInput, setPageInput] = useState("");
@@ -278,6 +272,7 @@ export default function AdminUmkmTable({
       const image_url = getItemImageUrl(item);
       const gmaps_url = getItemGmapsUrl(item);
       const rt_rw = getItemRtRw(item);
+      const parsedRtRw = parseRtRw(rt_rw);
 
       return {
         ...item,
@@ -289,6 +284,8 @@ export default function AdminUmkmTable({
         kategori_umkm,
         is_ekraf: getItemIsEkraf(item),
         rt_rw,
+        rt: parsedRtRw.rt,
+        rw: parsedRtRw.rw,
         latitude: item.latitude ?? "",
         longitude: item.longitude ?? "",
         gmaps_url,
@@ -321,6 +318,10 @@ export default function AdminUmkmTable({
     ).length;
   }, [normalizedData, adminStreets]);
 
+  const missingRtRwCount = useMemo(() => {
+    return normalizedData.filter((item) => !item.rt && !item.rw).length;
+  }, [normalizedData]);
+
   const filteredData = normalizedData.filter((item) => {
     const keyword = search.toLowerCase();
     const detectedStreet = detectStreetName(item.alamat, adminStreets);
@@ -331,6 +332,8 @@ export default function AdminUmkmTable({
       item.deskripsi?.toLowerCase().includes(keyword) ||
       item.kategori_umkm?.toLowerCase().includes(keyword) ||
       item.rt_rw?.toLowerCase().includes(keyword) ||
+      item.rt?.toLowerCase().includes(keyword) ||
+      item.rw?.toLowerCase().includes(keyword) ||
       item.whatsapp?.toLowerCase().includes(keyword) ||
       detectedStreet.toLowerCase().includes(keyword);
 
@@ -347,9 +350,20 @@ export default function AdminUmkmTable({
       (streetFilter !== "belum-cocok" &&
         isAddressMatchStreet(item.alamat, selectedStreet));
 
+    const matchRt =
+      rtFilter === "semua" ||
+      (rtFilter === "tanpa-rt" && !item.rt) ||
+      item.rt === rtFilter;
+
+    const matchRw =
+      rwFilter === "semua" ||
+      (rwFilter === "tanpa-rw" && !item.rw) ||
+      item.rw === rwFilter;
+
     const hasWa = item.whatsapp && String(item.whatsapp).trim() !== "";
     const hasImage = item.image_url && String(item.image_url).trim() !== "";
     const hasGmaps = item.gmaps_url && String(item.gmaps_url).trim() !== "";
+    const hasRtRw = item.rt || item.rw;
 
     const matchStatus =
       statusFilter === "semua" ||
@@ -358,9 +372,18 @@ export default function AdminUmkmTable({
       (statusFilter === "tanpa-wa" && !hasWa) ||
       (statusFilter === "tanpa-foto" && !hasImage) ||
       (statusFilter === "tanpa-gmaps" && !hasGmaps) ||
-      (statusFilter === "belum-lengkap" && (!hasWa || !hasImage || !hasGmaps));
+      (statusFilter === "tanpa-rt-rw" && !hasRtRw) ||
+      (statusFilter === "belum-lengkap" &&
+        (!hasWa || !hasImage || !hasGmaps || !hasRtRw));
 
-    return matchSearch && matchCategory && matchStreet && matchStatus;
+    return (
+      matchSearch &&
+      matchCategory &&
+      matchStreet &&
+      matchRt &&
+      matchRw &&
+      matchStatus
+    );
   });
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
@@ -411,6 +434,16 @@ export default function AdminUmkmTable({
     setCurrentPage(1);
   };
 
+  const changeRtFilter = (value: string) => {
+    setRtFilter(value);
+    setCurrentPage(1);
+  };
+
+  const changeRwFilter = (value: string) => {
+    setRwFilter(value);
+    setCurrentPage(1);
+  };
+
   const changeStatusFilter = (value: string) => {
     setStatusFilter(value);
     setCurrentPage(1);
@@ -420,6 +453,8 @@ export default function AdminUmkmTable({
     setSearch("");
     setCategoryFilter("semua");
     setStreetFilter("semua");
+    setRtFilter("semua");
+    setRwFilter("semua");
     setStatusFilter("semua");
     setCurrentPage(1);
     setPageInput("");
@@ -434,8 +469,6 @@ export default function AdminUmkmTable({
   };
 
   const openEditModal = (item: any) => {
-    const { rt, rw } = parseRtRw(item.rt_rw);
-
     setModalMode("edit");
     setForm({
       id: item.id,
@@ -444,8 +477,8 @@ export default function AdminUmkmTable({
       deskripsi: item.deskripsi ?? "",
       kategori_umkm: item.kategori_umkm ?? "",
       is_ekraf: item.is_ekraf === true,
-      rt,
-      rw,
+      rt: item.rt ?? "",
+      rw: item.rw ?? "",
       latitude: item.latitude ? String(item.latitude) : "",
       longitude: item.longitude ? String(item.longitude) : "",
       gmaps_url: item.gmaps_url ?? "",
@@ -568,38 +601,44 @@ export default function AdminUmkmTable({
 
   const exportCsv = () => {
     const rows = filteredData.map((item) => ({
-      "ID": item.id,
+      ID: item.id,
       "Nama Usaha": item.nama_usaha ?? "",
       "Kategori UMKM": item.kategori_umkm ?? "",
       "Status Ekraf": item.is_ekraf ? "Ekraf" : "Non-Ekraf",
       "Jalan Terdeteksi": detectStreetName(item.alamat, adminStreets),
-      "Alamat": item.alamat ?? "",
+      RT: item.rt ? `RT ${item.rt}` : "",
+      RW: item.rw ? `RW ${item.rw}` : "",
       "RT/RW": item.rt_rw ?? "",
-      "Deskripsi": item.deskripsi ?? "",
-      "WhatsApp": item.whatsapp ?? "",
-      "Foto": item.image_url ?? "",
+      Alamat: item.alamat ?? "",
+      Deskripsi: item.deskripsi ?? "",
+      WhatsApp: item.whatsapp ?? "",
+      Foto: item.image_url ?? "",
       "Google Maps": item.gmaps_url ?? "",
-      "Latitude": item.latitude ?? "",
-      "Longitude": item.longitude ?? "",
+      Latitude: item.latitude ?? "",
+      Longitude: item.longitude ?? "",
       "Status Data": item.is_active ? "Aktif" : "Nonaktif",
     }));
 
-    const headers = Object.keys(rows[0] ?? {
-      ID: "",
-      "Nama Usaha": "",
-      "Kategori UMKM": "",
-      "Status Ekraf": "",
-      "Jalan Terdeteksi": "",
-      Alamat: "",
-      "RT/RW": "",
-      Deskripsi: "",
-      WhatsApp: "",
-      Foto: "",
-      "Google Maps": "",
-      Latitude: "",
-      Longitude: "",
-      "Status Data": "",
-    });
+    const headers = Object.keys(
+      rows[0] ?? {
+        ID: "",
+        "Nama Usaha": "",
+        "Kategori UMKM": "",
+        "Status Ekraf": "",
+        "Jalan Terdeteksi": "",
+        RT: "",
+        RW: "",
+        "RT/RW": "",
+        Alamat: "",
+        Deskripsi: "",
+        WhatsApp: "",
+        Foto: "",
+        "Google Maps": "",
+        Latitude: "",
+        Longitude: "",
+        "Status Data": "",
+      }
+    );
 
     const csv = [
       headers.join(","),
@@ -642,7 +681,8 @@ export default function AdminUmkmTable({
               </h2>
 
               <p className="mt-1 text-sm text-gray-500">
-                Kelola data UMKM, filter jalan, foto, WhatsApp, dan Google Maps.
+                Kelola data UMKM, filter jalan, RT/RW, foto, WhatsApp, dan
+                Google Maps.
               </p>
             </div>
 
@@ -675,15 +715,15 @@ export default function AdminUmkmTable({
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <div className="relative">
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+            <div className="relative md:col-span-2 xl:col-span-2">
               <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
 
               <input
                 type="text"
                 value={search}
                 onChange={(e) => changeSearch(e.target.value)}
-                placeholder="Cari nama, alamat, kategori..."
+                placeholder="Cari nama, alamat, RT/RW, kategori..."
                 className="w-full rounded-2xl border bg-gray-50 py-3 pl-11 pr-4 text-sm text-gray-900 outline-none focus:border-blue-500"
               />
             </div>
@@ -718,9 +758,37 @@ export default function AdminUmkmTable({
             </select>
 
             <select
+              value={rtFilter}
+              onChange={(e) => changeRtFilter(e.target.value)}
+              className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+            >
+              <option value="semua">Semua RT</option>
+              <option value="tanpa-rt">Tanpa RT</option>
+              {RT_OPTIONS.map((rt) => (
+                <option key={rt} value={rt}>
+                  RT {rt}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={rwFilter}
+              onChange={(e) => changeRwFilter(e.target.value)}
+              className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+            >
+              <option value="semua">Semua RW</option>
+              <option value="tanpa-rw">Tanpa RW</option>
+              {RW_OPTIONS.map((rw) => (
+                <option key={rw} value={rw}>
+                  RW {rw}
+                </option>
+              ))}
+            </select>
+
+            <select
               value={statusFilter}
               onChange={(e) => changeStatusFilter(e.target.value)}
-              className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+              className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500 md:col-span-2 xl:col-span-2"
             >
               <option value="semua">Semua status</option>
               <option value="aktif">Aktif</option>
@@ -728,6 +796,7 @@ export default function AdminUmkmTable({
               <option value="tanpa-wa">Belum punya WhatsApp</option>
               <option value="tanpa-foto">Belum punya foto</option>
               <option value="tanpa-gmaps">Belum punya Google Maps</option>
+              <option value="tanpa-rt-rw">Belum punya RT/RW</option>
               <option value="belum-lengkap">Belum lengkap salah satu</option>
             </select>
           </div>
@@ -735,6 +804,8 @@ export default function AdminUmkmTable({
           {(search ||
             categoryFilter !== "semua" ||
             streetFilter !== "semua" ||
+            rtFilter !== "semua" ||
+            rwFilter !== "semua" ||
             statusFilter !== "semua") && (
             <button
               type="button"
@@ -745,7 +816,7 @@ export default function AdminUmkmTable({
             </button>
           )}
 
-          <div className="mt-5 grid gap-3 md:grid-cols-4">
+          <div className="mt-5 grid gap-3 md:grid-cols-5">
             <div className="rounded-2xl bg-blue-50 p-4">
               <p className="text-sm text-blue-700">Total Data</p>
               <p className="mt-1 text-2xl font-bold text-gray-950">
@@ -767,6 +838,13 @@ export default function AdminUmkmTable({
               </p>
             </div>
 
+            <div className="rounded-2xl bg-red-50 p-4">
+              <p className="text-sm text-red-700">Tanpa RT/RW</p>
+              <p className="mt-1 text-2xl font-bold text-gray-950">
+                {missingRtRwCount}
+              </p>
+            </div>
+
             <div className="rounded-2xl bg-indigo-50 p-4">
               <p className="text-sm text-indigo-700">Kamus Jalan</p>
               <p className="mt-1 text-2xl font-bold text-gray-950">
@@ -776,7 +854,10 @@ export default function AdminUmkmTable({
           </div>
         </div>
 
-        <div ref={tableTopRef} className="scroll-mt-28 rounded-3xl border bg-white shadow-sm">
+        <div
+          ref={tableTopRef}
+          className="scroll-mt-28 rounded-3xl border bg-white shadow-sm"
+        >
           <div className="border-b p-5">
             <div className="flex flex-col justify-between gap-2 md:flex-row md:items-center">
               <div>
@@ -798,12 +879,13 @@ export default function AdminUmkmTable({
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] text-left text-sm">
+            <table className="w-full min-w-[1250px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-gray-500">
                 <tr>
                   <th className="px-5 py-4">UMKM</th>
                   <th className="px-5 py-4">Kategori</th>
-                  <th className="px-5 py-4">Jalan Terdeteksi</th>
+                  <th className="px-5 py-4">Jalan</th>
+                  <th className="px-5 py-4">RT/RW</th>
                   <th className="px-5 py-4">Alamat</th>
                   <th className="px-5 py-4">Kelengkapan</th>
                   <th className="px-5 py-4">Status</th>
@@ -814,7 +896,10 @@ export default function AdminUmkmTable({
               <tbody className="divide-y">
                 {currentData.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-10 text-center text-gray-500">
+                    <td
+                      colSpan={8}
+                      className="px-5 py-10 text-center text-gray-500"
+                    >
                       Tidak ada data yang sesuai filter.
                     </td>
                   </tr>
@@ -831,9 +916,13 @@ export default function AdminUmkmTable({
                       item.image_url && String(item.image_url).trim() !== "";
                     const hasGmaps =
                       item.gmaps_url && String(item.gmaps_url).trim() !== "";
+                    const hasRtRw = item.rt || item.rw;
 
                     return (
-                      <tr key={item.id} className="align-top hover:bg-slate-50/60">
+                      <tr
+                        key={item.id}
+                        className="align-top hover:bg-slate-50/60"
+                      >
                         <td className="px-5 py-4">
                           <div className="flex items-start gap-3">
                             <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-blue-50 text-blue-600">
@@ -853,7 +942,7 @@ export default function AdminUmkmTable({
                                 {item.nama_usaha || "-"}
                               </p>
 
-                              <p className="mt-1 line-clamp-2 max-w-[260px] text-xs leading-5 text-gray-500">
+                              <p className="mt-1 line-clamp-2 max-w-[220px] text-xs leading-5 text-gray-500">
                                 {item.deskripsi || "Deskripsi belum tersedia"}
                               </p>
                             </div>
@@ -891,15 +980,31 @@ export default function AdminUmkmTable({
                         </td>
 
                         <td className="px-5 py-4">
-                          <p className="max-w-[280px] leading-5 text-gray-700">
+                          {hasRtRw ? (
+                            <div className="flex flex-wrap gap-2">
+                              {item.rt && (
+                                <span className="inline-flex rounded-full bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-700">
+                                  RT {item.rt}
+                                </span>
+                              )}
+
+                              {item.rw && (
+                                <span className="inline-flex rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+                                  RW {item.rw}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="inline-flex rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+                              Belum ada
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <p className="max-w-[260px] leading-5 text-gray-700">
                             {item.alamat || "-"}
                           </p>
-
-                          {item.rt_rw && (
-                            <p className="mt-1 text-xs text-gray-500">
-                              {item.rt_rw}
-                            </p>
-                          )}
                         </td>
 
                         <td className="px-5 py-4">
@@ -932,6 +1037,16 @@ export default function AdminUmkmTable({
                               }`}
                             >
                               GMaps
+                            </span>
+
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                hasRtRw
+                                  ? "bg-green-50 text-green-700"
+                                  : "bg-red-50 text-red-700"
+                              }`}
+                            >
+                              RT/RW
                             </span>
                           </div>
                         </td>
