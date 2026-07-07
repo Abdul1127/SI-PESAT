@@ -123,6 +123,7 @@ export default function UmkmList({
   const [selectedCategory, setSelectedCategory] = useState("semua");
   const [selectedStreet, setSelectedStreet] = useState("semua");
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageInput, setPageInput] = useState("");
   const [selectedUmkm, setSelectedUmkm] = useState<any | null>(null);
 
   const listTopRef = useRef<HTMLDivElement | null>(null);
@@ -179,7 +180,8 @@ export default function UmkmList({
   });
 
   const totalPages = Math.max(1, Math.ceil(filteredUmkm.length / itemsPerPage));
-  const startIndex = (currentPage - 1) * itemsPerPage;
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * itemsPerPage;
   const currentUmkm = filteredUmkm.slice(startIndex, startIndex + itemsPerPage);
 
   const scrollToListTop = () => {
@@ -190,8 +192,22 @@ export default function UmkmList({
   };
 
   const goToPage = (page: number) => {
-    setCurrentPage(page);
+    const targetPage = Math.min(Math.max(page, 1), totalPages);
+
+    setCurrentPage(targetPage);
+    setPageInput("");
+
     setTimeout(scrollToListTop, 50);
+  };
+
+  const jumpToPage = () => {
+    const targetPage = Number(pageInput);
+
+    if (!targetPage || Number.isNaN(targetPage)) {
+      return;
+    }
+
+    goToPage(targetPage);
   };
 
   const changeSearch = (value: string) => {
@@ -214,25 +230,55 @@ export default function UmkmList({
     setSelectedCategory("semua");
     setSelectedStreet("semua");
     setCurrentPage(1);
+    setPageInput("");
   };
 
   const Pagination = () => (
-    <div className="my-5 flex flex-wrap items-center justify-center gap-2">
+    <div className="my-5 flex flex-col items-center justify-center gap-3 rounded-3xl border bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap">
       <button
-        onClick={() => goToPage(Math.max(currentPage - 1, 1))}
-        disabled={currentPage === 1}
+        type="button"
+        onClick={() => goToPage(safeCurrentPage - 1)}
+        disabled={safeCurrentPage === 1}
         className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-40"
       >
         Sebelumnya
       </button>
 
-      <span className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-gray-700">
-        {currentPage} / {totalPages}
+      <span className="rounded-xl border bg-slate-50 px-4 py-2 text-sm font-medium text-gray-700">
+        {safeCurrentPage} / {totalPages}
       </span>
 
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-gray-500">Ke</span>
+
+        <input
+          type="number"
+          min={1}
+          max={totalPages}
+          value={pageInput}
+          onChange={(e) => setPageInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              jumpToPage();
+            }
+          }}
+          placeholder={String(safeCurrentPage)}
+          className="w-20 rounded-xl border bg-white px-3 py-2 text-center text-sm text-gray-900 outline-none focus:border-blue-500"
+        />
+
+        <button
+          type="button"
+          onClick={jumpToPage}
+          className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold !text-white hover:bg-blue-700"
+        >
+          Lompat
+        </button>
+      </div>
+
       <button
-        onClick={() => goToPage(Math.min(currentPage + 1, totalPages))}
-        disabled={currentPage === totalPages}
+        type="button"
+        onClick={() => goToPage(safeCurrentPage + 1)}
+        disabled={safeCurrentPage === totalPages}
         className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-40"
       >
         Berikutnya
@@ -249,6 +295,7 @@ export default function UmkmList({
 
             <div className="relative min-w-0">
               <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+
               <input
                 type="text"
                 placeholder="Cari UMKM..."
@@ -266,6 +313,7 @@ export default function UmkmList({
               className="block w-full rounded-xl border bg-white px-4 py-3 text-sm text-gray-900 outline-none lg:hidden"
             >
               <option value="semua">Semua kategori ({umkm.length})</option>
+
               {categories.map((category: any) => {
                 const count = umkm.filter((item) =>
                   item.sectors?.some(
@@ -283,6 +331,7 @@ export default function UmkmList({
 
             <div className="hidden max-h-80 space-y-2 overflow-y-auto pr-1 lg:block">
               <button
+                type="button"
                 onClick={() => changeCategory("semua")}
                 className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-medium ${
                   selectedCategory === "semua"
@@ -303,6 +352,7 @@ export default function UmkmList({
 
                 return (
                   <button
+                    type="button"
                     key={category.slug}
                     onClick={() => changeCategory(category.slug)}
                     className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-medium ${
@@ -328,6 +378,7 @@ export default function UmkmList({
               className="w-full rounded-xl border bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
             >
               <option value="semua">Semua jalan</option>
+
               {activeStreets.map((street) => {
                 const count = umkm.filter((item) =>
                   isAddressMatchStreet(item.short_address, street)
@@ -392,6 +443,7 @@ export default function UmkmList({
         <section className="min-w-0">
           <div ref={listTopRef} className="scroll-mt-28">
             <h3 className="text-xl font-bold text-gray-900">Daftar UMKM</h3>
+
             <p className="mt-1 text-sm text-gray-600">
               Menampilkan {filteredUmkm.length === 0 ? 0 : startIndex + 1}-
               {Math.min(startIndex + itemsPerPage, filteredUmkm.length)} dari{" "}
@@ -475,6 +527,7 @@ export default function UmkmList({
                       <div className="mt-2 space-y-1">
                         <p className="flex items-start gap-1 text-sm text-gray-500">
                           <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+
                           <span className="break-words">
                             {item.short_address ?? "Alamat belum tersedia"}
                           </span>
@@ -635,6 +688,7 @@ function UmkmDetailModal({
 
             <div>
               <h3 className="text-sm font-bold text-gray-900">Alamat</h3>
+
               <p className="mt-2 text-sm leading-6 text-gray-600">
                 {item.short_address ?? "Alamat belum tersedia"}
               </p>
@@ -647,6 +701,7 @@ function UmkmDetailModal({
             {item.wa && (
               <div>
                 <h3 className="text-sm font-bold text-gray-900">Kontak</h3>
+
                 <p className="mt-2 text-sm text-gray-600">
                   WhatsApp: {normalizeWa(item.wa)}
                 </p>

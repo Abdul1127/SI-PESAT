@@ -1,8 +1,20 @@
 "use client";
 
-import type { ChangeEvent, FormEvent } from "react";
 import { useMemo, useRef, useState } from "react";
-import { ImagePlus, Plus, Search, X } from "lucide-react";
+import {
+  Camera,
+  Edit,
+  ExternalLink,
+  Image as ImageIcon,
+  MapPin,
+  Plus,
+  RefreshCw,
+  Save,
+  Search,
+  Store,
+  Tags,
+  X,
+} from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
 const TABLE_NAME = "data_2025";
@@ -42,6 +54,24 @@ const RW_OPTIONS = Array.from({ length: 10 }, (_, index) =>
   String(index + 1).padStart(3, "0")
 );
 
+function normalizeWa(value: string | null | undefined) {
+  if (!value) return "";
+
+  const onlyNumber = String(value).replace(/\D/g, "");
+
+  if (onlyNumber === "") return "";
+
+  if (onlyNumber.startsWith("0")) {
+    return `62${onlyNumber.slice(1)}`;
+  }
+
+  if (onlyNumber.startsWith("8")) {
+    return `62${onlyNumber}`;
+  }
+
+  return onlyNumber;
+}
+
 function normalizeAddressText(value: string | null | undefined) {
   if (!value) return "";
 
@@ -74,7 +104,9 @@ function getAddressStart(value: string | null | undefined) {
   if (!normalized) return "";
 
   return normalized
-    .split(/\bkel\b|\bkelurahan\b|\bkec\b|\bkecamatan\b|\bkota\b|\bmalang\b|\bjatim\b|,/i)[0]
+    .split(
+      /\bkel\b|\bkelurahan\b|\bkec\b|\bkecamatan\b|\bkota\b|\bmalang\b|\bjatim\b|,/i
+    )[0]
     .trim();
 }
 
@@ -111,6 +143,99 @@ function detectStreetName(
   return matchedStreet?.nama_jalan ?? "Belum cocok";
 }
 
+function slugify(text: string) {
+  return String(text)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+function getItemName(item: any) {
+  return item.business_name ?? item.nama_usaha ?? "";
+}
+
+function getItemAddress(item: any) {
+  return item.short_address ?? item.address ?? item.alamat ?? "";
+}
+
+function getItemDescription(item: any) {
+  if (item.description) return item.description;
+  if (item.deskripsi) return item.deskripsi;
+  if (Array.isArray(item.descriptions)) return item.descriptions.join(", ");
+  return "";
+}
+
+function getItemCategory(item: any) {
+  if (item.kategori_umkm) return item.kategori_umkm;
+  if (item.categories?.name) return item.categories.name;
+  if (item.sectors?.[0]?.name) return item.sectors[0].name;
+  if (item.sektor) return item.sektor;
+  return "";
+}
+
+function getItemWa(item: any) {
+  return item.wa ?? item.whatsapp ?? "";
+}
+
+function getItemImageUrl(item: any) {
+  return item.image_url ?? "";
+}
+
+function getItemGmapsUrl(item: any) {
+  return item.gmaps_url ?? "";
+}
+
+function getItemIsEkraf(item: any) {
+  return item.is_ekraf === true;
+}
+
+function getItemIsActive(item: any) {
+  if (typeof item.is_active === "boolean") return item.is_active;
+  return true;
+}
+
+function getItemRtRw(item: any) {
+  return item.rt_rw ?? "";
+}
+
+function parseRtRw(value: string | null | undefined) {
+  const text = value ?? "";
+
+  const rtMatch = text.match(/RT\s*0?(\d+)/i);
+  const rwMatch = text.match(/RW\s*0?(\d+)/i);
+
+  const rt = rtMatch ? String(Number(rtMatch[1])).padStart(3, "0") : "";
+  const rw = rwMatch ? String(Number(rwMatch[1])).padStart(3, "0") : "";
+
+  return { rt, rw };
+}
+
+function buildRtRw(rt: string, rw: string) {
+  if (!rt && !rw) return null;
+  if (rt && rw) return `RT ${rt} RW ${rw}`;
+  if (rt) return `RT ${rt}`;
+  return `RW ${rw}`;
+}
+
+function emptyForm() {
+  return {
+    id: null as number | null,
+    nama_usaha: "",
+    alamat: "",
+    deskripsi: "",
+    kategori_umkm: "",
+    is_ekraf: false,
+    rt: "",
+    rw: "",
+    latitude: "",
+    longitude: "",
+    gmaps_url: "",
+    whatsapp: "",
+    image_url: "",
+    is_active: true,
+  };
+}
+
 export default function AdminUmkmTable({
   data,
   streets = [],
@@ -121,77 +246,21 @@ export default function AdminUmkmTable({
   onRefresh?: () => void;
 }) {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("semua");
-  const [ekrafFilter, setEkrafFilter] = useState("semua");
   const [categoryFilter, setCategoryFilter] = useState("semua");
-  const [locationFilter, setLocationFilter] = useState("semua");
-  const [photoFilter, setPhotoFilter] = useState("semua");
   const [streetFilter, setStreetFilter] = useState("semua");
+  const [statusFilter, setStatusFilter] = useState("semua");
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageInput, setPageInput] = useState("");
 
-  const [loadingId, setLoadingId] = useState<number | null>(null);
-  const [savingEdit, setSavingEdit] = useState(false);
-  const [savingAdd, setSavingAdd] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<"add" | "edit">("add");
+  const [form, setForm] = useState(emptyForm());
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
 
   const tableTopRef = useRef<HTMLDivElement | null>(null);
-
-  const [editItem, setEditItem] = useState<any | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
-
-  const emptyForm = {
-    nama_usaha: "",
-    alamat: "",
-    deskripsi: "",
-    kategori_umkm: "",
-    kategori_umkm_2: "",
-    is_ekraf: false,
-    rt: "",
-    rw: "",
-    latitude: "",
-    longitude: "",
-    gmaps_url: "",
-    wa: "",
-  };
-
-  const [addForm, setAddForm] = useState(emptyForm);
-
-  const [editForm, setEditForm] = useState({
-    nama_usaha: "",
-    alamat: "",
-    kategori_umkm: "",
-    kategori_umkm_2: "",
-    is_ekraf: false,
-    rt: "",
-    rw: "",
-    latitude: "",
-    longitude: "",
-    gmaps_url: "",
-    image_url: "",
-    wa: "",
-  });
-
-  const itemsPerPage = 15;
-
-  const adminCategories = useMemo(() => {
-    const categoryMap = new Map<string, string>();
-
-    data.forEach((item) => {
-      item.sectors?.forEach((sector: any) => {
-        if (sector.slug && sector.name) {
-          categoryMap.set(sector.slug, sector.name);
-        }
-      });
-    });
-
-    return Array.from(categoryMap.entries())
-      .map(([slug, name]) => ({
-        slug,
-        name,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [data]);
+  const itemsPerPage = 10;
 
   const adminStreets = useMemo(() => {
     return [...streets].sort((a, b) =>
@@ -199,102 +268,105 @@ export default function AdminUmkmTable({
     );
   }, [streets]);
 
-  const filteredData = useMemo(() => {
-    const keyword = search.toLowerCase();
+  const normalizedData = useMemo(() => {
+    return data.map((item) => {
+      const nama_usaha = getItemName(item);
+      const alamat = getItemAddress(item);
+      const deskripsi = getItemDescription(item);
+      const kategori_umkm = getItemCategory(item);
+      const whatsapp = getItemWa(item);
+      const image_url = getItemImageUrl(item);
+      const gmaps_url = getItemGmapsUrl(item);
+      const rt_rw = getItemRtRw(item);
 
-    return data.filter((item) => {
-      const detectedStreet = detectStreetName(item.alamat, adminStreets);
-
-      const matchSearch =
-        item.nama_usaha?.toLowerCase().includes(keyword) ||
-        item.alamat?.toLowerCase().includes(keyword) ||
-        item.kategori_umkm?.toLowerCase().includes(keyword) ||
-        item.old_sector?.toLowerCase().includes(keyword) ||
-        item.wa?.toLowerCase().includes(keyword) ||
-        detectedStreet.toLowerCase().includes(keyword) ||
-        item.descriptions?.some((desc: string) =>
-          desc.toLowerCase().includes(keyword)
-        ) ||
-        item.sectors?.some((sector: any) =>
-          sector.name?.toLowerCase().includes(keyword)
-        );
-
-      const matchStatus =
-        statusFilter === "semua" ||
-        (statusFilter === "aktif" && item.is_active === true) ||
-        (statusFilter === "nonaktif" && item.is_active === false);
-
-      const matchEkraf =
-        ekrafFilter === "semua" ||
-        (ekrafFilter === "ekraf" && item.is_ekraf === true) ||
-        (ekrafFilter === "nonekraf" && item.is_ekraf !== true);
-
-      const matchCategory =
-        categoryFilter === "semua" ||
-        item.sectors?.some((sector: any) => sector.slug === categoryFilter);
-
-      const hasGmaps =
-        item.gmaps_url && String(item.gmaps_url).trim() !== "";
-
-      const hasCoordinate =
-        item.latitude !== null &&
-        item.latitude !== undefined &&
-        item.longitude !== null &&
-        item.longitude !== undefined;
-
-      const hasPhoto =
-        item.image_url && String(item.image_url).trim() !== "";
-
-      const matchLocation =
-        locationFilter === "semua" ||
-        (locationFilter === "gmaps" && hasGmaps) ||
-        (locationFilter === "koordinat" && !hasGmaps && hasCoordinate) ||
-        (locationFilter === "belum-ada" && !hasGmaps && !hasCoordinate);
-
-      const matchPhoto =
-        photoFilter === "semua" ||
-        (photoFilter === "ada-foto" && hasPhoto) ||
-        (photoFilter === "belum-ada-foto" && !hasPhoto);
-
-      const selectedStreet = adminStreets.find(
-        (street) => String(street.id) === streetFilter
-      );
-
-      const matchStreet =
-        streetFilter === "semua" ||
-        isAddressMatchStreet(item.alamat, selectedStreet);
-
-      return (
-        matchSearch &&
-        matchStatus &&
-        matchEkraf &&
-        matchCategory &&
-        matchLocation &&
-        matchPhoto &&
-        matchStreet
-      );
+      return {
+        ...item,
+        id: item.id,
+        rowIds: item.rowIds ?? [item.id],
+        nama_usaha,
+        alamat,
+        deskripsi,
+        kategori_umkm,
+        is_ekraf: getItemIsEkraf(item),
+        rt_rw,
+        latitude: item.latitude ?? "",
+        longitude: item.longitude ?? "",
+        gmaps_url,
+        whatsapp,
+        image_url,
+        is_active: getItemIsActive(item),
+      };
     });
-  }, [
-    data,
-    adminStreets,
-    search,
-    statusFilter,
-    ekrafFilter,
-    categoryFilter,
-    locationFilter,
-    photoFilter,
-    streetFilter,
-  ]);
+  }, [data]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentData = filteredData.slice(startIndex, startIndex + itemsPerPage);
+  const categories = useMemo(() => {
+    const merged = new Set<string>();
+
+    for (const option of CATEGORY_OPTIONS) {
+      merged.add(option);
+    }
+
+    for (const item of normalizedData) {
+      if (item.kategori_umkm) {
+        merged.add(item.kategori_umkm);
+      }
+    }
+
+    return Array.from(merged);
+  }, [normalizedData]);
 
   const unmatchedStreetCount = useMemo(() => {
-    return data.filter(
+    return normalizedData.filter(
       (item) => detectStreetName(item.alamat, adminStreets) === "Belum cocok"
     ).length;
-  }, [data, adminStreets]);
+  }, [normalizedData, adminStreets]);
+
+  const filteredData = normalizedData.filter((item) => {
+    const keyword = search.toLowerCase();
+    const detectedStreet = detectStreetName(item.alamat, adminStreets);
+
+    const matchSearch =
+      item.nama_usaha?.toLowerCase().includes(keyword) ||
+      item.alamat?.toLowerCase().includes(keyword) ||
+      item.deskripsi?.toLowerCase().includes(keyword) ||
+      item.kategori_umkm?.toLowerCase().includes(keyword) ||
+      item.rt_rw?.toLowerCase().includes(keyword) ||
+      item.whatsapp?.toLowerCase().includes(keyword) ||
+      detectedStreet.toLowerCase().includes(keyword);
+
+    const matchCategory =
+      categoryFilter === "semua" || item.kategori_umkm === categoryFilter;
+
+    const selectedStreet = adminStreets.find(
+      (street) => String(street.id) === streetFilter
+    );
+
+    const matchStreet =
+      streetFilter === "semua" ||
+      (streetFilter === "belum-cocok" && detectedStreet === "Belum cocok") ||
+      (streetFilter !== "belum-cocok" &&
+        isAddressMatchStreet(item.alamat, selectedStreet));
+
+    const hasWa = item.whatsapp && String(item.whatsapp).trim() !== "";
+    const hasImage = item.image_url && String(item.image_url).trim() !== "";
+    const hasGmaps = item.gmaps_url && String(item.gmaps_url).trim() !== "";
+
+    const matchStatus =
+      statusFilter === "semua" ||
+      (statusFilter === "aktif" && item.is_active === true) ||
+      (statusFilter === "nonaktif" && item.is_active === false) ||
+      (statusFilter === "tanpa-wa" && !hasWa) ||
+      (statusFilter === "tanpa-foto" && !hasImage) ||
+      (statusFilter === "tanpa-gmaps" && !hasGmaps) ||
+      (statusFilter === "belum-lengkap" && (!hasWa || !hasImage || !hasGmaps));
+
+    return matchSearch && matchCategory && matchStreet && matchStatus;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * itemsPerPage;
+  const currentData = filteredData.slice(startIndex, startIndex + itemsPerPage);
 
   const scrollToTableTop = () => {
     tableTopRef.current?.scrollIntoView({
@@ -303,18 +375,29 @@ export default function AdminUmkmTable({
     });
   };
 
+  const goToPage = (page: number) => {
+    const targetPage = Math.min(Math.max(page, 1), totalPages);
+
+    setCurrentPage(targetPage);
+    setPageInput("");
+
+    setTimeout(() => {
+      scrollToTableTop();
+    }, 50);
+  };
+
+  const jumpToPage = () => {
+    const targetPage = Number(pageInput);
+
+    if (!targetPage || Number.isNaN(targetPage)) {
+      return;
+    }
+
+    goToPage(targetPage);
+  };
+
   const changeSearch = (value: string) => {
     setSearch(value);
-    setCurrentPage(1);
-  };
-
-  const changeStatus = (value: string) => {
-    setStatusFilter(value);
-    setCurrentPage(1);
-  };
-
-  const changeEkrafFilter = (value: string) => {
-    setEkrafFilter(value);
     setCurrentPage(1);
   };
 
@@ -323,1487 +406,1033 @@ export default function AdminUmkmTable({
     setCurrentPage(1);
   };
 
-  const changeLocationFilter = (value: string) => {
-    setLocationFilter(value);
-    setCurrentPage(1);
-  };
-
-  const changePhotoFilter = (value: string) => {
-    setPhotoFilter(value);
-    setCurrentPage(1);
-  };
-
   const changeStreetFilter = (value: string) => {
     setStreetFilter(value);
     setCurrentPage(1);
   };
 
-  const resetExtraFilters = () => {
-    setCategoryFilter("semua");
-    setLocationFilter("semua");
-    setPhotoFilter("semua");
-    setStreetFilter("semua");
+  const changeStatusFilter = (value: string) => {
+    setStatusFilter(value);
     setCurrentPage(1);
   };
 
-  const goToPage = (page: number) => {
-    setCurrentPage(Math.min(Math.max(page, 1), totalPages));
-
-    setTimeout(() => {
-      scrollToTableTop();
-    }, 50);
-  };
-
-  const getTargetIds = (item: any) => {
-    return Array.isArray(item.rowIds) && item.rowIds.length > 0
-      ? item.rowIds
-      : [item.id];
-  };
-
-  const parseCoordinate = (value: string) => {
-    if (value.trim() === "") return null;
-
-    const parsed = Number(value);
-    return Number.isNaN(parsed) ? "invalid" : parsed;
-  };
-
-  const parseRtRw = (value: string | null | undefined) => {
-    if (!value) {
-      return {
-        rt: "",
-        rw: "",
-      };
-    }
-
-    const rtMatch = value.match(/RT\s*0?(\d+)/i);
-    const rwMatch = value.match(/RW\s*0?(\d+)/i);
-
-    return {
-      rt: rtMatch ? rtMatch[1].padStart(3, "0") : "",
-      rw: rwMatch ? rwMatch[1].padStart(3, "0") : "",
-    };
-  };
-
-  const buildRtRw = (rt: string, rw: string) => {
-    if (!rt && !rw) return null;
-    if (rt && rw) return `RT ${rt} RW ${rw}`;
-    if (rt) return `RT ${rt}`;
-    return `RW ${rw}`;
-  };
-
-  const normalizeWa = (value: string) => {
-    const onlyNumber = value.replace(/\D/g, "");
-
-    if (onlyNumber.trim() === "") return null;
-
-    if (onlyNumber.startsWith("0")) {
-      return `62${onlyNumber.slice(1)}`;
-    }
-
-    if (onlyNumber.startsWith("8")) {
-      return `62${onlyNumber}`;
-    }
-
-    return onlyNumber;
-  };
-
-  const buildSearchText = (payload: {
-    nama_usaha: string;
-    alamat: string;
-    deskripsi: string;
-    kategori_umkm: string;
-  }) => {
-    return [
-      payload.nama_usaha,
-      payload.alamat,
-      payload.deskripsi,
-      payload.kategori_umkm,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-  };
-
-  const toggleStatus = async (item: any) => {
-    const nextStatus = !item.is_active;
-    const actionText = nextStatus ? "mengaktifkan" : "menonaktifkan";
-
-    const confirmAction = window.confirm(
-      `Yakin ingin ${actionText} "${item.nama_usaha}"?`
-    );
-
-    if (!confirmAction) return;
-
-    setLoadingId(item.id);
-    setMessage("");
-
-    const { error } = await supabase
-      .from(TABLE_NAME)
-      .update({
-        is_active: nextStatus,
-      })
-      .in("id", getTargetIds(item));
-
-    if (error) {
-      setMessage(`Gagal update status: ${error.message}`);
-      setLoadingId(null);
-      return;
-    }
-
-    setMessage(
-      nextStatus
-        ? `"${item.nama_usaha}" berhasil diaktifkan.`
-        : `"${item.nama_usaha}" berhasil dinonaktifkan.`
-    );
-
-    setLoadingId(null);
-    onRefresh?.();
+  const resetFilters = () => {
+    setSearch("");
+    setCategoryFilter("semua");
+    setStreetFilter("semua");
+    setStatusFilter("semua");
+    setCurrentPage(1);
+    setPageInput("");
   };
 
   const openAddModal = () => {
-    setAddForm(emptyForm);
+    setModalMode("add");
+    setForm(emptyForm());
+    setSelectedFile(null);
     setMessage("");
-    setShowAddModal(true);
-  };
-
-  const closeAddModal = () => {
-    setShowAddModal(false);
-    setSavingAdd(false);
+    setIsModalOpen(true);
   };
 
   const openEditModal = (item: any) => {
-    setEditItem(item);
-    setMessage("");
+    const { rt, rw } = parseRtRw(item.rt_rw);
 
-    const parsedRtRw = parseRtRw(item.rt_rw);
-
-    setEditForm({
+    setModalMode("edit");
+    setForm({
+      id: item.id,
       nama_usaha: item.nama_usaha ?? "",
       alamat: item.alamat ?? "",
-      kategori_umkm: item.sectors?.[0]?.name ?? item.kategori_umkm ?? "",
-      kategori_umkm_2: item.sectors?.[1]?.name ?? "",
+      deskripsi: item.deskripsi ?? "",
+      kategori_umkm: item.kategori_umkm ?? "",
       is_ekraf: item.is_ekraf === true,
-      rt: parsedRtRw.rt,
-      rw: parsedRtRw.rw,
-      latitude:
-        item.latitude !== null && item.latitude !== undefined
-          ? String(item.latitude)
-          : "",
-      longitude:
-        item.longitude !== null && item.longitude !== undefined
-          ? String(item.longitude)
-          : "",
+      rt,
+      rw,
+      latitude: item.latitude ? String(item.latitude) : "",
+      longitude: item.longitude ? String(item.longitude) : "",
       gmaps_url: item.gmaps_url ?? "",
+      whatsapp: item.whatsapp ?? "",
       image_url: item.image_url ?? "",
-      wa: item.wa ?? "",
+      is_active: item.is_active === true,
     });
-  };
-
-  const closeEditModal = () => {
-    setEditItem(null);
-    setSavingEdit(false);
-    setUploadingImage(false);
-  };
-
-  const handleUploadImage = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-
-    if (!file || !editItem) return;
-
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-
-    if (!allowedTypes.includes(file.type)) {
-      setMessage("Gagal upload foto: format harus JPG, PNG, atau WebP.");
-      return;
-    }
-
-    const maxSize = 2 * 1024 * 1024;
-
-    if (file.size > maxSize) {
-      setMessage("Gagal upload foto: ukuran maksimal 2 MB.");
-      return;
-    }
-
-    setUploadingImage(true);
+    setSelectedFile(null);
     setMessage("");
+    setIsModalOpen(true);
+  };
 
-    const fileExt = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
-    const safeName = editItem.nama_usaha
-      ? editItem.nama_usaha
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/(^-|-$)/g, "")
-      : "umkm";
+  const closeModal = () => {
+    if (isSaving) return;
 
-    const filePath = `${editItem.id}-${safeName}-${Date.now()}.${fileExt}`;
+    setIsModalOpen(false);
+    setForm(emptyForm());
+    setSelectedFile(null);
+    setMessage("");
+  };
+
+  const uploadImageIfNeeded = async () => {
+    if (!selectedFile) {
+      return form.image_url || null;
+    }
+
+    const fileExt = selectedFile.name.split(".").pop();
+    const fileName = `${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}.${fileExt}`;
+    const filePath = `umkm/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from(STORAGE_BUCKET)
-      .upload(filePath, file, {
+      .upload(filePath, selectedFile, {
         cacheControl: "3600",
         upsert: false,
       });
 
     if (uploadError) {
-      setMessage(`Gagal upload foto: ${uploadError.message}`);
-      setUploadingImage(false);
-      return;
+      throw new Error(`Gagal upload foto: ${uploadError.message}`);
     }
 
     const { data: publicUrlData } = supabase.storage
       .from(STORAGE_BUCKET)
       .getPublicUrl(filePath);
 
-    const publicUrl = publicUrlData.publicUrl;
-
-    setEditForm((prev) => ({
-      ...prev,
-      image_url: publicUrl,
-    }));
-
-    setMessage(
-      "Foto berhasil diupload. Klik Simpan Perubahan untuk menyimpan ke data UMKM."
-    );
-    setUploadingImage(false);
+    return publicUrlData.publicUrl;
   };
 
-  const saveAdd = async (e: FormEvent) => {
-    e.preventDefault();
-
-    const namaUsaha = addForm.nama_usaha.trim();
-    const alamat = addForm.alamat.trim();
-    const deskripsi = addForm.deskripsi.trim();
-
-    const kategoriUmkm1 =
-      addForm.kategori_umkm.trim() === ""
-        ? "Lainnya / Perlu Review"
-        : addForm.kategori_umkm.trim();
-
-    const kategoriUmkm2 = addForm.kategori_umkm_2.trim();
-
-    const selectedCategories = [kategoriUmkm1, kategoriUmkm2]
-      .filter(Boolean)
-      .filter((value, index, array) => array.indexOf(value) === index);
-
-    const rtRw = buildRtRw(addForm.rt, addForm.rw);
-    const gmapsUrl = addForm.gmaps_url.trim();
-    const normalizedWa = normalizeWa(addForm.wa);
-
-    if (!namaUsaha) {
-      setMessage("Gagal menambah data: nama usaha wajib diisi.");
-      return;
-    }
-
-    const latitudeValue = parseCoordinate(addForm.latitude);
-    const longitudeValue = parseCoordinate(addForm.longitude);
-
-    if (latitudeValue === "invalid") {
-      setMessage("Gagal menambah data: latitude harus berupa angka.");
-      return;
-    }
-
-    if (longitudeValue === "invalid") {
-      setMessage("Gagal menambah data: longitude harus berupa angka.");
-      return;
-    }
-
-    setSavingAdd(true);
+  const saveData = async () => {
+    setIsSaving(true);
     setMessage("");
 
-    const insertPayloads = selectedCategories.map((category) => ({
-      nama_usaha: namaUsaha,
-      alamat: alamat === "" ? null : alamat,
-      deskripsi: deskripsi === "" ? null : deskripsi,
-      sektor: null,
-      kategori_umkm: category,
-      is_ekraf: addForm.is_ekraf,
-      rt_rw: rtRw,
-      latitude: latitudeValue,
-      longitude: longitudeValue,
-      gmaps_url: gmapsUrl === "" ? null : gmapsUrl,
-      image_url: null,
-      whatsapp: normalizedWa,
-      search_text: buildSearchText({
-        nama_usaha: namaUsaha,
-        alamat,
-        deskripsi,
-        kategori_umkm: category,
-      }),
-      is_active: true,
-    }));
-
-    const { error } = await supabase.from(TABLE_NAME).insert(insertPayloads);
-
-    if (error) {
-      setMessage(`Gagal menambah data: ${error.message}`);
-      setSavingAdd(false);
-      return;
-    }
-
-    setMessage(
-      selectedCategories.length > 1
-        ? `"${namaUsaha}" berhasil ditambahkan dengan ${selectedCategories.length} kategori.`
-        : `"${namaUsaha}" berhasil ditambahkan.`
-    );
-
-    setSavingAdd(false);
-    setShowAddModal(false);
-    setAddForm(emptyForm);
-    onRefresh?.();
-  };
-
-  const saveEdit = async (e: FormEvent) => {
-    e.preventDefault();
-
-    if (!editItem) return;
-
-    const confirmAction = window.confirm(
-      `Simpan perubahan untuk "${editItem.nama_usaha}"?`
-    );
-
-    if (!confirmAction) return;
-
-    setSavingEdit(true);
-    setMessage("");
-
-    const latitudeValue = parseCoordinate(editForm.latitude);
-    const longitudeValue = parseCoordinate(editForm.longitude);
-    const normalizedWa = normalizeWa(editForm.wa);
-
-    if (latitudeValue === "invalid") {
-      setMessage("Gagal menyimpan: latitude harus berupa angka.");
-      setSavingEdit(false);
-      return;
-    }
-
-    if (longitudeValue === "invalid") {
-      setMessage("Gagal menyimpan: longitude harus berupa angka.");
-      setSavingEdit(false);
-      return;
-    }
-
-    const kategoriUmkm1 =
-      editForm.kategori_umkm.trim() === ""
-        ? "Lainnya / Perlu Review"
-        : editForm.kategori_umkm.trim();
-
-    const kategoriUmkm2 = editForm.kategori_umkm_2.trim();
-
-    const selectedCategories = [kategoriUmkm1, kategoriUmkm2]
-      .filter(Boolean)
-      .filter((value, index, array) => array.indexOf(value) === index);
-
-    const rtRw = buildRtRw(editForm.rt, editForm.rw);
-
-    const targetIds = getTargetIds(editItem);
-
-    const commonPayload = {
-      nama_usaha: editForm.nama_usaha.trim(),
-      alamat: editForm.alamat.trim() === "" ? null : editForm.alamat.trim(),
-      is_ekraf: editForm.is_ekraf,
-      rt_rw: rtRw,
-      latitude: latitudeValue,
-      longitude: longitudeValue,
-      gmaps_url:
-        editForm.gmaps_url.trim() === "" ? null : editForm.gmaps_url.trim(),
-      image_url:
-        editForm.image_url.trim() === "" ? null : editForm.image_url.trim(),
-      whatsapp: normalizedWa,
-    };
-
-    const { error: commonError } = await supabase
-      .from(TABLE_NAME)
-      .update(commonPayload)
-      .in("id", targetIds);
-
-    if (commonError) {
-      setMessage(`Gagal menyimpan perubahan: ${commonError.message}`);
-      setSavingEdit(false);
-      return;
-    }
-
-    const firstId = targetIds[0];
-
-    const { error: firstCategoryError } = await supabase
-      .from(TABLE_NAME)
-      .update({
-        kategori_umkm: selectedCategories[0],
-        search_text: buildSearchText({
-          nama_usaha: editForm.nama_usaha.trim(),
-          alamat: editForm.alamat.trim(),
-          deskripsi:
-            editItem.descriptions?.join(" ") ?? editItem.deskripsi ?? "",
-          kategori_umkm: selectedCategories[0],
-        }),
-      })
-      .eq("id", firstId);
-
-    if (firstCategoryError) {
-      setMessage(
-        `Gagal menyimpan kategori utama: ${firstCategoryError.message}`
-      );
-      setSavingEdit(false);
-      return;
-    }
-
-    if (selectedCategories[1]) {
-      const secondId = targetIds[1];
-
-      if (secondId) {
-        const { error: secondCategoryError } = await supabase
-          .from(TABLE_NAME)
-          .update({
-            kategori_umkm: selectedCategories[1],
-            search_text: buildSearchText({
-              nama_usaha: editForm.nama_usaha.trim(),
-              alamat: editForm.alamat.trim(),
-              deskripsi:
-                editItem.descriptions?.join(" ") ?? editItem.deskripsi ?? "",
-              kategori_umkm: selectedCategories[1],
-            }),
-          })
-          .eq("id", secondId);
-
-        if (secondCategoryError) {
-          setMessage(
-            `Gagal menyimpan kategori kedua: ${secondCategoryError.message}`
-          );
-          setSavingEdit(false);
-          return;
-        }
-      } else {
-        const { error: insertSecondCategoryError } = await supabase
-          .from(TABLE_NAME)
-          .insert({
-            nama_usaha: editForm.nama_usaha.trim(),
-            alamat:
-              editForm.alamat.trim() === "" ? null : editForm.alamat.trim(),
-            deskripsi:
-              editItem.descriptions?.[0] ?? editItem.deskripsi ?? null,
-            sektor: null,
-            kategori_umkm: selectedCategories[1],
-            is_ekraf: editForm.is_ekraf,
-            rt_rw: rtRw,
-            latitude: latitudeValue,
-            longitude: longitudeValue,
-            gmaps_url:
-              editForm.gmaps_url.trim() === ""
-                ? null
-                : editForm.gmaps_url.trim(),
-            image_url:
-              editForm.image_url.trim() === ""
-                ? null
-                : editForm.image_url.trim(),
-            whatsapp: normalizedWa,
-            search_text: buildSearchText({
-              nama_usaha: editForm.nama_usaha.trim(),
-              alamat: editForm.alamat.trim(),
-              deskripsi:
-                editItem.descriptions?.join(" ") ?? editItem.deskripsi ?? "",
-              kategori_umkm: selectedCategories[1],
-            }),
-            is_active: editItem.is_active,
-          });
-
-        if (insertSecondCategoryError) {
-          setMessage(
-            `Gagal menambah kategori kedua: ${insertSecondCategoryError.message}`
-          );
-          setSavingEdit(false);
-          return;
-        }
+    try {
+      if (!form.nama_usaha.trim()) {
+        throw new Error("Nama usaha wajib diisi.");
       }
-    }
 
-    setMessage(`"${editForm.nama_usaha}" berhasil diperbarui.`);
-    setSavingEdit(false);
-    setEditItem(null);
-    onRefresh?.();
+      if (!form.alamat.trim()) {
+        throw new Error("Alamat wajib diisi.");
+      }
+
+      const imageUrl = await uploadImageIfNeeded();
+      const normalizedWa = normalizeWa(form.whatsapp);
+
+      const payload = {
+        nama_usaha: form.nama_usaha.trim(),
+        alamat: form.alamat.trim(),
+        deskripsi: form.deskripsi.trim() || null,
+        kategori_umkm: form.kategori_umkm || null,
+        is_ekraf: form.is_ekraf,
+        rt_rw: buildRtRw(form.rt, form.rw),
+        latitude:
+          form.latitude.trim() === "" ? null : Number(form.latitude.trim()),
+        longitude:
+          form.longitude.trim() === "" ? null : Number(form.longitude.trim()),
+        gmaps_url: form.gmaps_url.trim() || null,
+        whatsapp: normalizedWa || null,
+        image_url: imageUrl,
+        is_active: form.is_active,
+      };
+
+      if (modalMode === "edit") {
+        if (!form.id) {
+          throw new Error("ID data tidak ditemukan.");
+        }
+
+        const { error } = await supabase
+          .from(TABLE_NAME)
+          .update(payload)
+          .eq("id", form.id);
+
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        setMessage("Data berhasil diperbarui.");
+      } else {
+        const { error } = await supabase.from(TABLE_NAME).insert(payload);
+
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        setMessage("Data baru berhasil ditambahkan.");
+      }
+
+      await onRefresh?.();
+
+      setTimeout(() => {
+        closeModal();
+      }, 500);
+    } catch (error: any) {
+      setMessage(error.message ?? "Terjadi kesalahan saat menyimpan data.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const exportCsv = () => {
+    const rows = filteredData.map((item) => ({
+      "ID": item.id,
+      "Nama Usaha": item.nama_usaha ?? "",
+      "Kategori UMKM": item.kategori_umkm ?? "",
+      "Status Ekraf": item.is_ekraf ? "Ekraf" : "Non-Ekraf",
+      "Jalan Terdeteksi": detectStreetName(item.alamat, adminStreets),
+      "Alamat": item.alamat ?? "",
+      "RT/RW": item.rt_rw ?? "",
+      "Deskripsi": item.deskripsi ?? "",
+      "WhatsApp": item.whatsapp ?? "",
+      "Foto": item.image_url ?? "",
+      "Google Maps": item.gmaps_url ?? "",
+      "Latitude": item.latitude ?? "",
+      "Longitude": item.longitude ?? "",
+      "Status Data": item.is_active ? "Aktif" : "Nonaktif",
+    }));
+
+    const headers = Object.keys(rows[0] ?? {
+      ID: "",
+      "Nama Usaha": "",
+      "Kategori UMKM": "",
+      "Status Ekraf": "",
+      "Jalan Terdeteksi": "",
+      Alamat: "",
+      "RT/RW": "",
+      Deskripsi: "",
+      WhatsApp: "",
+      Foto: "",
+      "Google Maps": "",
+      Latitude: "",
+      Longitude: "",
+      "Status Data": "",
+    });
+
+    const csv = [
+      headers.join(","),
+      ...rows.map((row: any) =>
+        headers
+          .map((header) => {
+            const value = String(row[header] ?? "");
+            return `"${value.replace(/"/g, '""')}"`;
+          })
+          .join(",")
+      ),
+    ].join("\n");
+
+    const blob = new Blob(["\uFEFF" + csv], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `export-umkm-${Date.now()}.csv`;
+    link.click();
+
+    URL.revokeObjectURL(url);
   };
 
   return (
     <>
-      <div
-        ref={tableTopRef}
-        className="scroll-mt-28 rounded-3xl border bg-white shadow-sm"
-      >
-        <div className="border-b p-5">
-          <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+      <div className="space-y-5">
+        <div className="rounded-3xl border bg-white p-5 shadow-sm">
+          <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
             <div>
-              <p className="text-lg font-bold text-gray-950">Data UMKM</p>
-              <p className="mt-1 text-sm text-gray-600">
-                Filter jalan memakai tabel kamus jalan_sukun. Data yang belum
-                cocok berarti alias jalan perlu ditambahkan ke Supabase.
+              <p className="text-sm font-bold uppercase tracking-wide text-blue-600">
+                Manajemen Data
+              </p>
+
+              <h2 className="mt-1 text-2xl font-extrabold text-gray-950">
+                Data UMKM
+              </h2>
+
+              <p className="mt-1 text-sm text-gray-500">
+                Kelola data UMKM, filter jalan, foto, WhatsApp, dan Google Maps.
               </p>
             </div>
 
-            <div className="grid w-full gap-3 md:grid-cols-2 xl:w-auto xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={exportCsv}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Export CSV
+              </button>
+
+              <button
+                type="button"
+                onClick={onRefresh}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </button>
+
               <button
                 type="button"
                 onClick={openAddModal}
-                className="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold !text-white hover:bg-blue-700"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold !text-white hover:bg-blue-700"
               >
                 <Plus className="h-4 w-4 text-white" />
                 Tambah Data
               </button>
-
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => changeSearch(e.target.value)}
-                  placeholder="Cari UMKM / jalan..."
-                  className="w-full rounded-2xl border bg-gray-50 py-3 pl-11 pr-4 text-sm text-gray-900 outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <select
-                value={statusFilter}
-                onChange={(e) => changeStatus(e.target.value)}
-                className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-              >
-                <option value="semua">Semua status</option>
-                <option value="aktif">Aktif</option>
-                <option value="nonaktif">Nonaktif</option>
-              </select>
-
-              <select
-                value={ekrafFilter}
-                onChange={(e) => changeEkrafFilter(e.target.value)}
-                className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-              >
-                <option value="semua">Semua jenis</option>
-                <option value="ekraf">Ekraf</option>
-                <option value="nonekraf">Non-Ekraf</option>
-              </select>
-
-              <select
-                value={categoryFilter}
-                onChange={(e) => changeCategoryFilter(e.target.value)}
-                className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-              >
-                <option value="semua">Semua kategori</option>
-                {adminCategories.map((category) => (
-                  <option key={category.slug} value={category.slug}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={streetFilter}
-                onChange={(e) => changeStreetFilter(e.target.value)}
-                className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-              >
-                <option value="semua">Semua jalan</option>
-                {adminStreets.map((street) => (
-                  <option key={street.id} value={String(street.id)}>
-                    {street.nama_jalan}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={locationFilter}
-                onChange={(e) => changeLocationFilter(e.target.value)}
-                className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-              >
-                <option value="semua">Semua lokasi</option>
-                <option value="gmaps">Punya Google Maps</option>
-                <option value="koordinat">Hanya koordinat</option>
-                <option value="belum-ada">Belum ada lokasi</option>
-              </select>
-
-              <select
-                value={photoFilter}
-                onChange={(e) => changePhotoFilter(e.target.value)}
-                className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-              >
-                <option value="semua">Semua foto</option>
-                <option value="ada-foto">Memiliki foto</option>
-                <option value="belum-ada-foto">Belum memiliki foto</option>
-              </select>
             </div>
           </div>
 
-          {message && (
-            <div
-              className={`mt-4 rounded-2xl px-4 py-3 text-sm font-medium ${
-                message.startsWith("Gagal")
-                  ? "bg-red-50 text-red-700"
-                  : "bg-green-50 text-green-700"
-              }`}
-            >
-              {message}
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => changeSearch(e.target.value)}
+                placeholder="Cari nama, alamat, kategori..."
+                className="w-full rounded-2xl border bg-gray-50 py-3 pl-11 pr-4 text-sm text-gray-900 outline-none focus:border-blue-500"
+              />
             </div>
-          )}
 
-          <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-gray-600 md:grid-cols-3">
-            <p>
-              Menampilkan{" "}
-              <span className="font-semibold text-gray-900">
-                {filteredData.length === 0 ? 0 : startIndex + 1}-
-                {Math.min(startIndex + itemsPerPage, filteredData.length)}
-              </span>{" "}
-              dari{" "}
-              <span className="font-semibold text-gray-900">
-                {filteredData.length}
-              </span>{" "}
-              data.
-            </p>
-
-            <p>
-              Kamus jalan:{" "}
-              <span className="font-semibold text-gray-900">
-                {adminStreets.length}
-              </span>
-            </p>
-
-            <p>
-              Belum cocok jalan:{" "}
-              <span className="font-semibold text-red-700">
-                {unmatchedStreetCount}
-              </span>
-            </p>
-
-            {(categoryFilter !== "semua" ||
-              locationFilter !== "semua" ||
-              photoFilter !== "semua" ||
-              streetFilter !== "semua") && (
-              <button
-                type="button"
-                onClick={resetExtraFilters}
-                className="w-fit rounded-xl bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50"
-              >
-                Reset filter tambahan
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1400px] border-collapse text-left text-sm">
-            <thead>
-              <tr className="border-b bg-slate-50 text-gray-600">
-                <th className="px-5 py-4 font-semibold">Nama Usaha</th>
-                <th className="px-5 py-4 font-semibold">Kategori</th>
-                <th className="px-5 py-4 font-semibold">Jalan Terdeteksi</th>
-                <th className="px-5 py-4 font-semibold">Foto</th>
-                <th className="px-5 py-4 font-semibold">WA</th>
-                <th className="px-5 py-4 font-semibold">Ekraf</th>
-                <th className="px-5 py-4 font-semibold">Alamat</th>
-                <th className="px-5 py-4 font-semibold">Status</th>
-                <th className="px-5 py-4 font-semibold">Maps</th>
-                <th className="px-5 py-4 font-semibold">Aksi</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {currentData.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={10}
-                    className="px-5 py-10 text-center text-gray-500"
-                  >
-                    Data tidak ditemukan.
-                  </td>
-                </tr>
-              ) : (
-                currentData.map((item: any) => {
-                  const detectedStreet = detectStreetName(
-                    item.alamat,
-                    adminStreets
-                  );
-
-                  return (
-                    <tr key={item.id} className="border-b last:border-b-0">
-                      <td className="px-5 py-4 align-top">
-                        <p className="font-semibold text-gray-950">
-                          {item.nama_usaha}
-                        </p>
-
-                        {item.sectors.length > 1 && (
-                          <p className="mt-1 text-xs font-semibold text-green-600">
-                            Multi kategori
-                          </p>
-                        )}
-
-                        {item.rowIds?.length > 1 && (
-                          <p className="mt-2 text-xs text-gray-400">
-                            {item.rowIds.length} baris data tergabung
-                          </p>
-                        )}
-                      </td>
-
-                      <td className="px-5 py-4 align-top">
-                        <div className="flex max-w-xs flex-wrap gap-1">
-                          {item.sectors.slice(0, 3).map((sector: any) => (
-                            <span
-                              key={sector.slug}
-                              className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700"
-                            >
-                              {sector.name}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-
-                      <td className="px-5 py-4 align-top">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            detectedStreet === "Belum cocok"
-                              ? "bg-red-50 text-red-700"
-                              : "bg-slate-100 text-slate-700"
-                          }`}
-                        >
-                          {detectedStreet}
-                        </span>
-                      </td>
-
-                      <td className="px-5 py-4 align-top">
-                        {item.image_url ? (
-                          <img
-                            src={item.image_url}
-                            alt={item.nama_usaha ?? "Foto UMKM"}
-                            className="h-14 w-20 rounded-xl object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
-                            Belum ada
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="px-5 py-4 align-top">
-                        {item.wa ? (
-                          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                            Ada
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
-                            Belum ada
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="px-5 py-4 align-top">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            item.is_ekraf
-                              ? "bg-green-50 text-green-700"
-                              : "bg-gray-100 text-gray-600"
-                          }`}
-                        >
-                          {item.is_ekraf ? "Ekraf" : "Non-Ekraf"}
-                        </span>
-                      </td>
-
-                      <td className="max-w-sm px-5 py-4 align-top text-gray-600">
-                        {item.alamat ?? "-"}
-                      </td>
-
-                      <td className="px-5 py-4 align-top">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            item.is_active
-                              ? "bg-green-50 text-green-700"
-                              : "bg-red-50 text-red-700"
-                          }`}
-                        >
-                          {item.is_active ? "Aktif" : "Nonaktif"}
-                        </span>
-                      </td>
-
-                      <td className="px-5 py-4 align-top">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            item.gmaps_url
-                              ? "bg-blue-50 text-blue-700"
-                              : item.latitude !== null &&
-                                  item.latitude !== undefined &&
-                                  item.longitude !== null &&
-                                  item.longitude !== undefined
-                                ? "bg-amber-50 text-amber-700"
-                                : "bg-gray-100 text-gray-600"
-                          }`}
-                        >
-                          {item.gmaps_url
-                            ? "GMaps"
-                            : item.latitude !== null &&
-                                item.latitude !== undefined &&
-                                item.longitude !== null &&
-                                item.longitude !== undefined
-                              ? "Koordinat"
-                              : "Belum ada"}
-                        </span>
-                      </td>
-
-                      <td className="px-5 py-4 align-top">
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(item)}
-                            className="rounded-xl border px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                          >
-                            Edit
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => toggleStatus(item)}
-                            disabled={loadingId === item.id}
-                            className={`rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-50 ${
-                              item.is_active
-                                ? "bg-red-50 text-red-700 hover:bg-red-100"
-                                : "bg-green-50 text-green-700 hover:bg-green-100"
-                            }`}
-                          >
-                            {loadingId === item.id
-                              ? "Memproses..."
-                              : item.is_active
-                                ? "Nonaktifkan"
-                                : "Aktifkan"}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="flex flex-col items-center justify-between gap-3 border-t p-5 sm:flex-row">
-          <p className="text-sm text-gray-500">
-            Halaman {currentPage} dari {totalPages}
-          </p>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => goToPage(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-40"
+            <select
+              value={categoryFilter}
+              onChange={(e) => changeCategoryFilter(e.target.value)}
+              className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
             >
-              Sebelumnya
-            </button>
+              <option value="semua">Semua kategori</option>
+              {categories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
 
-            <button
-              onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-40"
+            <select
+              value={streetFilter}
+              onChange={(e) => changeStreetFilter(e.target.value)}
+              className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
             >
-              Berikutnya
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {showAddModal && (
-        <AddModal
-          addForm={addForm}
-          setAddForm={setAddForm}
-          savingAdd={savingAdd}
-          closeAddModal={closeAddModal}
-          saveAdd={saveAdd}
-        />
-      )}
-
-      {editItem && (
-        <EditModal
-          editItem={editItem}
-          editForm={editForm}
-          setEditForm={setEditForm}
-          savingEdit={savingEdit}
-          uploadingImage={uploadingImage}
-          closeEditModal={closeEditModal}
-          saveEdit={saveEdit}
-          handleUploadImage={handleUploadImage}
-        />
-      )}
-    </>
-  );
-}
-
-function AddModal({
-  addForm,
-  setAddForm,
-  savingAdd,
-  closeAddModal,
-  saveAdd,
-}: any) {
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4 py-6">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
-        <div className="mb-5 flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-wide text-blue-600">
-              Tambah Data
-            </p>
-            <h2 className="mt-1 text-2xl font-extrabold text-gray-950">
-              Tambah UMKM Baru
-            </h2>
-          </div>
-
-          <button
-            type="button"
-            onClick={closeAddModal}
-            className="rounded-xl bg-gray-100 p-2 text-gray-600 hover:bg-gray-200"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <form onSubmit={saveAdd} className="space-y-4">
-          <BasicFields
-            form={addForm}
-            setForm={setAddForm}
-            includeDescription
-          />
-
-          <CategoryFields form={addForm} setForm={setAddForm} />
-
-          <EkrafSelect
-            value={addForm.is_ekraf}
-            onChange={(value) =>
-              setAddForm((prev: any) => ({ ...prev, is_ekraf: value }))
-            }
-          />
-
-          <WaField
-            value={addForm.wa}
-            onChange={(value) =>
-              setAddForm((prev: any) => ({ ...prev, wa: value }))
-            }
-          />
-
-          <RtRwSelect
-            rt={addForm.rt}
-            rw={addForm.rw}
-            onChangeRt={(value) =>
-              setAddForm((prev: any) => ({ ...prev, rt: value }))
-            }
-            onChangeRw={(value) =>
-              setAddForm((prev: any) => ({ ...prev, rw: value }))
-            }
-          />
-
-          <CoordinateFields
-            latitude={addForm.latitude}
-            longitude={addForm.longitude}
-            onChangeLatitude={(value) =>
-              setAddForm((prev: any) => ({ ...prev, latitude: value }))
-            }
-            onChangeLongitude={(value) =>
-              setAddForm((prev: any) => ({ ...prev, longitude: value }))
-            }
-          />
-
-          <GmapsField
-            value={addForm.gmaps_url}
-            onChange={(value) =>
-              setAddForm((prev: any) => ({ ...prev, gmaps_url: value }))
-            }
-          />
-
-          <ModalActions
-            onCancel={closeAddModal}
-            loading={savingAdd}
-            submitText="Tambah Data"
-            loadingText="Menyimpan..."
-          />
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function EditModal({
-  editItem,
-  editForm,
-  setEditForm,
-  savingEdit,
-  uploadingImage,
-  closeEditModal,
-  saveEdit,
-  handleUploadImage,
-}: any) {
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4 py-6">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
-        <div className="mb-5 flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-wide text-blue-600">
-              Edit UMKM
-            </p>
-            <h2 className="mt-1 text-2xl font-extrabold text-gray-950">
-              {editItem.nama_usaha}
-            </h2>
-          </div>
-
-          <button
-            type="button"
-            onClick={closeEditModal}
-            className="rounded-xl bg-gray-100 p-2 text-gray-600 hover:bg-gray-200"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <form onSubmit={saveEdit} className="space-y-4">
-          <BasicFields form={editForm} setForm={setEditForm} />
-
-          <CategoryFields form={editForm} setForm={setEditForm} />
-
-          <EkrafSelect
-            value={editForm.is_ekraf}
-            onChange={(value) =>
-              setEditForm((prev: any) => ({ ...prev, is_ekraf: value }))
-            }
-          />
-
-          <WaField
-            value={editForm.wa}
-            onChange={(value) =>
-              setEditForm((prev: any) => ({ ...prev, wa: value }))
-            }
-          />
-
-          <ImageUploadField
-            imageUrl={editForm.image_url}
-            uploadingImage={uploadingImage}
-            handleUploadImage={handleUploadImage}
-            onClear={() =>
-              setEditForm((prev: any) => ({
-                ...prev,
-                image_url: "",
-              }))
-            }
-          />
-
-          <RtRwSelect
-            rt={editForm.rt}
-            rw={editForm.rw}
-            onChangeRt={(value) =>
-              setEditForm((prev: any) => ({ ...prev, rt: value }))
-            }
-            onChangeRw={(value) =>
-              setEditForm((prev: any) => ({ ...prev, rw: value }))
-            }
-          />
-
-          <CoordinateFields
-            latitude={editForm.latitude}
-            longitude={editForm.longitude}
-            onChangeLatitude={(value) =>
-              setEditForm((prev: any) => ({ ...prev, latitude: value }))
-            }
-            onChangeLongitude={(value) =>
-              setEditForm((prev: any) => ({ ...prev, longitude: value }))
-            }
-          />
-
-          <GmapsField
-            value={editForm.gmaps_url}
-            onChange={(value) =>
-              setEditForm((prev: any) => ({ ...prev, gmaps_url: value }))
-            }
-          />
-
-          <ModalActions
-            onCancel={closeEditModal}
-            loading={savingEdit || uploadingImage}
-            submitText="Simpan Perubahan"
-            loadingText={uploadingImage ? "Upload foto..." : "Menyimpan..."}
-          />
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function BasicFields({ form, setForm, includeDescription = false }: any) {
-  return (
-    <>
-      <div>
-        <label className="mb-2 block text-sm font-semibold text-gray-900">
-          Nama Usaha <span className="text-red-600">*</span>
-        </label>
-        <input
-          type="text"
-          required
-          value={form.nama_usaha}
-          onChange={(e) =>
-            setForm((prev: any) => ({
-              ...prev,
-              nama_usaha: e.target.value,
-            }))
-          }
-          className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-        />
-      </div>
-
-      <div>
-        <label className="mb-2 block text-sm font-semibold text-gray-900">
-          Alamat
-        </label>
-        <textarea
-          rows={3}
-          value={form.alamat}
-          onChange={(e) =>
-            setForm((prev: any) => ({
-              ...prev,
-              alamat: e.target.value,
-            }))
-          }
-          className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-        />
-      </div>
-
-      {includeDescription && (
-        <div>
-          <label className="mb-2 block text-sm font-semibold text-gray-900">
-            Deskripsi / Layanan
-          </label>
-          <textarea
-            rows={3}
-            value={form.deskripsi}
-            onChange={(e) =>
-              setForm((prev: any) => ({
-                ...prev,
-                deskripsi: e.target.value,
-              }))
-            }
-            placeholder="Contoh: jual bandeng presto dan jasa travel"
-            className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-          />
-        </div>
-      )}
-    </>
-  );
-}
-
-function CategoryFields({ form, setForm }: any) {
-  return (
-    <>
-      <div className="grid gap-4 md:grid-cols-2">
-        <div>
-          <label className="mb-2 block text-sm font-semibold text-gray-900">
-            Kategori UMKM 1
-          </label>
-          <select
-            value={form.kategori_umkm}
-            onChange={(e) =>
-              setForm((prev: any) => ({
-                ...prev,
-                kategori_umkm: e.target.value,
-              }))
-            }
-            className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-          >
-            <option value="">Pilih kategori utama</option>
-            {CATEGORY_OPTIONS.map((category) => (
-              <option key={category} value={category}>
-                {category}
+              <option value="semua">Semua jalan</option>
+              <option value="belum-cocok">
+                Belum cocok jalan ({unmatchedStreetCount})
               </option>
-            ))}
-          </select>
-        </div>
+              {adminStreets.map((street) => (
+                <option key={street.id} value={String(street.id)}>
+                  {street.nama_jalan}
+                </option>
+              ))}
+            </select>
 
-        <div>
-          <label className="mb-2 block text-sm font-semibold text-gray-900">
-            Kategori UMKM 2{" "}
-            <span className="text-gray-400">(opsional)</span>
-          </label>
-          <select
-            value={form.kategori_umkm_2}
-            onChange={(e) =>
-              setForm((prev: any) => ({
-                ...prev,
-                kategori_umkm_2: e.target.value,
-              }))
-            }
-            className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-          >
-            <option value="">Tidak ada kategori kedua</option>
-            {CATEGORY_OPTIONS.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => changeStatusFilter(e.target.value)}
+              className="rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+            >
+              <option value="semua">Semua status</option>
+              <option value="aktif">Aktif</option>
+              <option value="nonaktif">Nonaktif</option>
+              <option value="tanpa-wa">Belum punya WhatsApp</option>
+              <option value="tanpa-foto">Belum punya foto</option>
+              <option value="tanpa-gmaps">Belum punya Google Maps</option>
+              <option value="belum-lengkap">Belum lengkap salah satu</option>
+            </select>
+          </div>
 
-      {form.kategori_umkm_2 && form.kategori_umkm_2 === form.kategori_umkm && (
-        <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Kategori kedua sama dengan kategori pertama. Sistem hanya akan
-          menyimpan satu kategori.
-        </div>
-      )}
-    </>
-  );
-}
-
-function EkrafSelect({
-  value,
-  onChange,
-}: {
-  value: boolean;
-  onChange: (value: boolean) => void;
-}) {
-  return (
-    <div>
-      <label className="mb-2 block text-sm font-semibold text-gray-900">
-        Status Ekraf
-      </label>
-      <select
-        value={value ? "true" : "false"}
-        onChange={(e) => onChange(e.target.value === "true")}
-        className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-      >
-        <option value="false">Non-Ekraf</option>
-        <option value="true">Ekraf</option>
-      </select>
-    </div>
-  );
-}
-
-function WaField({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div>
-      <label className="mb-2 block text-sm font-semibold text-gray-900">
-        Nomor WhatsApp
-      </label>
-
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Contoh: 081234567890 atau 6281234567890"
-        className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-      />
-
-      <p className="mt-2 text-xs leading-5 text-gray-500">
-        Boleh isi format 08..., +62..., atau 628.... Sistem akan menyimpan dalam
-        format 628....
-      </p>
-    </div>
-  );
-}
-
-function ImageUploadField({
-  imageUrl,
-  uploadingImage,
-  handleUploadImage,
-  onClear,
-}: {
-  imageUrl: string;
-  uploadingImage: boolean;
-  handleUploadImage: (e: ChangeEvent<HTMLInputElement>) => void;
-  onClear: () => void;
-}) {
-  return (
-    <div className="rounded-2xl border bg-slate-50 p-4">
-      <label className="mb-3 block text-sm font-semibold text-gray-900">
-        Foto Produk / Usaha
-      </label>
-
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <div className="flex h-32 w-full items-center justify-center overflow-hidden rounded-2xl bg-white text-gray-400 sm:w-44">
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt="Preview Foto UMKM"
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <ImagePlus className="h-8 w-8" />
-          )}
-        </div>
-
-        <div className="flex-1">
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={handleUploadImage}
-            disabled={uploadingImage}
-            className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-xl file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700"
-          />
-
-          <p className="mt-2 text-xs leading-5 text-gray-500">
-            Format: JPG, PNG, atau WebP. Ukuran maksimal 2 MB. Setelah upload,
-            klik Simpan Perubahan.
-          </p>
-
-          {imageUrl && (
+          {(search ||
+            categoryFilter !== "semua" ||
+            streetFilter !== "semua" ||
+            statusFilter !== "semua") && (
             <button
               type="button"
-              onClick={onClear}
-              className="mt-3 rounded-xl bg-red-50 px-4 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
+              onClick={resetFilters}
+              className="mt-4 rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-slate-200"
             >
-              Hapus foto dari data
+              Reset filter
             </button>
           )}
+
+          <div className="mt-5 grid gap-3 md:grid-cols-4">
+            <div className="rounded-2xl bg-blue-50 p-4">
+              <p className="text-sm text-blue-700">Total Data</p>
+              <p className="mt-1 text-2xl font-bold text-gray-950">
+                {normalizedData.length}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-green-50 p-4">
+              <p className="text-sm text-green-700">Data Tampil</p>
+              <p className="mt-1 text-2xl font-bold text-gray-950">
+                {filteredData.length}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-amber-50 p-4">
+              <p className="text-sm text-amber-700">Belum Cocok Jalan</p>
+              <p className="mt-1 text-2xl font-bold text-gray-950">
+                {unmatchedStreetCount}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-indigo-50 p-4">
+              <p className="text-sm text-indigo-700">Kamus Jalan</p>
+              <p className="mt-1 text-2xl font-bold text-gray-950">
+                {adminStreets.length}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div ref={tableTopRef} className="scroll-mt-28 rounded-3xl border bg-white shadow-sm">
+          <div className="border-b p-5">
+            <div className="flex flex-col justify-between gap-2 md:flex-row md:items-center">
+              <div>
+                <h3 className="text-lg font-bold text-gray-950">
+                  Tabel Data UMKM
+                </h3>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  Menampilkan {filteredData.length === 0 ? 0 : startIndex + 1}-
+                  {Math.min(startIndex + itemsPerPage, filteredData.length)}{" "}
+                  dari {filteredData.length} data.
+                </p>
+              </div>
+
+              <div className="text-sm text-gray-500">
+                Halaman {safeCurrentPage} dari {totalPages}
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1100px] text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="px-5 py-4">UMKM</th>
+                  <th className="px-5 py-4">Kategori</th>
+                  <th className="px-5 py-4">Jalan Terdeteksi</th>
+                  <th className="px-5 py-4">Alamat</th>
+                  <th className="px-5 py-4">Kelengkapan</th>
+                  <th className="px-5 py-4">Status</th>
+                  <th className="px-5 py-4 text-right">Aksi</th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y">
+                {currentData.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-10 text-center text-gray-500">
+                      Tidak ada data yang sesuai filter.
+                    </td>
+                  </tr>
+                ) : (
+                  currentData.map((item) => {
+                    const detectedStreet = detectStreetName(
+                      item.alamat,
+                      adminStreets
+                    );
+
+                    const hasWa =
+                      item.whatsapp && String(item.whatsapp).trim() !== "";
+                    const hasImage =
+                      item.image_url && String(item.image_url).trim() !== "";
+                    const hasGmaps =
+                      item.gmaps_url && String(item.gmaps_url).trim() !== "";
+
+                    return (
+                      <tr key={item.id} className="align-top hover:bg-slate-50/60">
+                        <td className="px-5 py-4">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-blue-50 text-blue-600">
+                              {item.image_url ? (
+                                <img
+                                  src={item.image_url}
+                                  alt={item.nama_usaha}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <Store className="h-5 w-5" />
+                              )}
+                            </div>
+
+                            <div className="min-w-0">
+                              <p className="font-bold text-gray-950">
+                                {item.nama_usaha || "-"}
+                              </p>
+
+                              <p className="mt-1 line-clamp-2 max-w-[260px] text-xs leading-5 text-gray-500">
+                                {item.deskripsi || "Deskripsi belum tersedia"}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <span className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                            {item.kategori_umkm || "Belum ada"}
+                          </span>
+
+                          <div className="mt-2">
+                            {item.is_ekraf ? (
+                              <span className="inline-flex rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+                                Ekraf
+                              </span>
+                            ) : (
+                              <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+                                Non-Ekraf
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          {detectedStreet === "Belum cocok" ? (
+                            <span className="inline-flex rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+                              Belum cocok
+                            </span>
+                          ) : (
+                            <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                              {detectedStreet}
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <p className="max-w-[280px] leading-5 text-gray-700">
+                            {item.alamat || "-"}
+                          </p>
+
+                          {item.rt_rw && (
+                            <p className="mt-1 text-xs text-gray-500">
+                              {item.rt_rw}
+                            </p>
+                          )}
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <div className="flex flex-wrap gap-2">
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                hasWa
+                                  ? "bg-green-50 text-green-700"
+                                  : "bg-red-50 text-red-700"
+                              }`}
+                            >
+                              WA
+                            </span>
+
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                hasImage
+                                  ? "bg-green-50 text-green-700"
+                                  : "bg-red-50 text-red-700"
+                              }`}
+                            >
+                              Foto
+                            </span>
+
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                hasGmaps
+                                  ? "bg-green-50 text-green-700"
+                                  : "bg-red-50 text-red-700"
+                              }`}
+                            >
+                              GMaps
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          {item.is_active ? (
+                            <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+                              Aktif
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+                              Nonaktif
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <div className="flex justify-end gap-2">
+                            {item.gmaps_url && (
+                              <a
+                                href={item.gmaps_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border text-gray-700 hover:bg-gray-50"
+                                title="Buka Google Maps"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(item)}
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white hover:bg-blue-700"
+                              title="Edit data"
+                            >
+                              <Edit className="h-4 w-4 text-white" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-col items-center justify-between gap-3 border-t p-5 lg:flex-row">
+            <p className="text-sm text-gray-500">
+              Halaman {safeCurrentPage} dari {totalPages}
+            </p>
+
+            <div className="flex flex-col items-center gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => goToPage(safeCurrentPage - 1)}
+                disabled={safeCurrentPage === 1}
+                className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-40"
+              >
+                Sebelumnya
+              </button>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500">Ke halaman</span>
+
+                <input
+                  type="number"
+                  min={1}
+                  max={totalPages}
+                  value={pageInput}
+                  onChange={(e) => setPageInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      jumpToPage();
+                    }
+                  }}
+                  placeholder={String(safeCurrentPage)}
+                  className="w-20 rounded-xl border bg-white px-3 py-2 text-center text-sm text-gray-900 outline-none focus:border-blue-500"
+                />
+
+                <button
+                  type="button"
+                  onClick={jumpToPage}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold !text-white hover:bg-blue-700"
+                >
+                  Lompat
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => goToPage(safeCurrentPage + 1)}
+                disabled={safeCurrentPage === totalPages}
+                className="rounded-xl border bg-white px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-40"
+              >
+                Berikutnya
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
 
-function RtRwSelect({
-  rt,
-  rw,
-  onChangeRt,
-  onChangeRw,
-}: {
-  rt: string;
-  rw: string;
-  onChangeRt: (value: string) => void;
-  onChangeRw: (value: string) => void;
-}) {
-  return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <div>
-        <label className="mb-2 block text-sm font-semibold text-gray-900">
-          RT
-        </label>
-        <select
-          value={rt}
-          onChange={(e) => onChangeRt(e.target.value)}
-          className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-        >
-          <option value="">Pilih RT</option>
-          {RT_OPTIONS.map((item) => (
-            <option key={item} value={item}>
-              RT {item}
-            </option>
-          ))}
-        </select>
-      </div>
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4 py-6">
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white shadow-xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-wide text-blue-600">
+                  {modalMode === "edit" ? "Edit Data" : "Tambah Data"}
+                </p>
 
-      <div>
-        <label className="mb-2 block text-sm font-semibold text-gray-900">
-          RW
-        </label>
-        <select
-          value={rw}
-          onChange={(e) => onChangeRw(e.target.value)}
-          className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-        >
-          <option value="">Pilih RW</option>
-          {RW_OPTIONS.map((item) => (
-            <option key={item} value={item}>
-              RW {item}
-            </option>
-          ))}
-        </select>
-      </div>
-    </div>
-  );
-}
+                <h3 className="text-xl font-extrabold text-gray-950">
+                  {modalMode === "edit" ? "Perbarui UMKM" : "Tambah UMKM Baru"}
+                </h3>
+              </div>
 
-function CoordinateFields({
-  latitude,
-  longitude,
-  onChangeLatitude,
-  onChangeLongitude,
-}: {
-  latitude: string;
-  longitude: string;
-  onChangeLatitude: (value: string) => void;
-  onChangeLongitude: (value: string) => void;
-}) {
-  return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <div>
-        <label className="mb-2 block text-sm font-semibold text-gray-900">
-          Latitude
-        </label>
-        <input
-          type="text"
-          value={latitude}
-          onChange={(e) => onChangeLatitude(e.target.value)}
-          placeholder="-7.9666204"
-          className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-        />
-      </div>
+              <button
+                type="button"
+                onClick={closeModal}
+                className="rounded-full p-2 text-gray-500 hover:bg-gray-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
-      <div>
-        <label className="mb-2 block text-sm font-semibold text-gray-900">
-          Longitude
-        </label>
-        <input
-          type="text"
-          value={longitude}
-          onChange={(e) => onChangeLongitude(e.target.value)}
-          placeholder="112.6326321"
-          className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-        />
-      </div>
-    </div>
-  );
-}
+            <div className="space-y-5 p-6">
+              {message && (
+                <div
+                  className={`rounded-2xl px-4 py-3 text-sm font-medium ${
+                    message.toLowerCase().includes("berhasil")
+                      ? "bg-green-50 text-green-700"
+                      : "bg-red-50 text-red-700"
+                  }`}
+                >
+                  {message}
+                </div>
+              )}
 
-function GmapsField({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div>
-      <label className="mb-2 block text-sm font-semibold text-gray-900">
-        Google Maps URL
-      </label>
-      <input
-        type="url"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="https://maps.app.goo.gl/..."
-        className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
-      />
-    </div>
-  );
-}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    Nama Usaha
+                  </label>
 
-function ModalActions({
-  onCancel,
-  loading,
-  submitText,
-  loadingText,
-}: {
-  onCancel: () => void;
-  loading: boolean;
-  submitText: string;
-  loadingText: string;
-}) {
-  return (
-    <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-      <button
-        type="button"
-        onClick={onCancel}
-        className="rounded-2xl border px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50"
-      >
-        Batal
-      </button>
+                  <input
+                    type="text"
+                    value={form.nama_usaha}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        nama_usaha: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                    placeholder="Contoh: Warung Makan Bu Ani"
+                  />
+                </div>
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold !text-white hover:bg-blue-700 disabled:opacity-60"
-      >
-        {loading ? loadingText : submitText}
-      </button>
-    </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    Kategori
+                  </label>
+
+                  <select
+                    value={form.kategori_umkm}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        kategori_umkm: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                  >
+                    <option value="">Pilih kategori</option>
+                    {CATEGORY_OPTIONS.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    Status Ekraf
+                  </label>
+
+                  <select
+                    value={form.is_ekraf ? "true" : "false"}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        is_ekraf: e.target.value === "true",
+                      }))
+                    }
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                  >
+                    <option value="false">Non-Ekraf</option>
+                    <option value="true">Ekraf</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    Deskripsi / Produk
+                  </label>
+
+                  <textarea
+                    value={form.deskripsi}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        deskripsi: e.target.value,
+                      }))
+                    }
+                    rows={3}
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                    placeholder="Contoh: Nasi campur, ayam geprek, minuman dingin"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    Alamat
+                  </label>
+
+                  <textarea
+                    value={form.alamat}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        alamat: e.target.value,
+                      }))
+                    }
+                    rows={3}
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                    placeholder="Contoh: Jl. Meliwis Barat No. 10, Sukun"
+                  />
+
+                  <p className="mt-2 text-xs text-gray-500">
+                    Jalan terdeteksi:{" "}
+                    <span
+                      className={
+                        detectStreetName(form.alamat, adminStreets) ===
+                        "Belum cocok"
+                          ? "font-semibold text-red-600"
+                          : "font-semibold text-green-700"
+                      }
+                    >
+                      {detectStreetName(form.alamat, adminStreets)}
+                    </span>
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    RT
+                  </label>
+
+                  <select
+                    value={form.rt}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        rt: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                  >
+                    <option value="">Tidak ada</option>
+                    {RT_OPTIONS.map((rt) => (
+                      <option key={rt} value={rt}>
+                        RT {rt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    RW
+                  </label>
+
+                  <select
+                    value={form.rw}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        rw: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                  >
+                    <option value="">Tidak ada</option>
+                    {RW_OPTIONS.map((rw) => (
+                      <option key={rw} value={rw}>
+                        RW {rw}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    Latitude
+                  </label>
+
+                  <input
+                    type="number"
+                    value={form.latitude}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        latitude: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                    placeholder="-7.982..."
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    Longitude
+                  </label>
+
+                  <input
+                    type="number"
+                    value={form.longitude}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        longitude: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                    placeholder="112.621..."
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    Google Maps URL
+                  </label>
+
+                  <div className="relative">
+                    <MapPin className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+
+                    <input
+                      type="text"
+                      value={form.gmaps_url}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          gmaps_url: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-2xl border bg-gray-50 py-3 pl-11 pr-4 text-sm text-gray-900 outline-none focus:border-blue-500"
+                      placeholder="https://maps.google.com/..."
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    WhatsApp
+                  </label>
+
+                  <input
+                    type="text"
+                    value={form.whatsapp}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        whatsapp: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                    placeholder="08xxxxxxxxxx"
+                  />
+
+                  {form.whatsapp && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Disimpan sebagai: {normalizeWa(form.whatsapp)}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    Status Data
+                  </label>
+
+                  <select
+                    value={form.is_active ? "true" : "false"}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        is_active: e.target.value === "true",
+                      }))
+                    }
+                    className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none focus:border-blue-500"
+                  >
+                    <option value="true">Aktif</option>
+                    <option value="false">Nonaktif</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">
+                    Foto UMKM
+                  </label>
+
+                  <div className="grid gap-4 md:grid-cols-[180px_1fr]">
+                    <div className="flex h-36 items-center justify-center overflow-hidden rounded-2xl border bg-blue-50 text-blue-600">
+                      {selectedFile ? (
+                        <img
+                          src={URL.createObjectURL(selectedFile)}
+                          alt="Preview foto"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : form.image_url ? (
+                        <img
+                          src={form.image_url}
+                          alt="Foto UMKM"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <ImageIcon className="h-10 w-10" />
+                      )}
+                    </div>
+
+                    <div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) =>
+                          setSelectedFile(e.target.files?.[0] ?? null)
+                        }
+                        className="w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none file:mr-4 file:rounded-xl file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white"
+                      />
+
+                      <p className="mt-2 text-xs leading-5 text-gray-500">
+                        Pilih gambar dari perangkat. Setelah klik Simpan, foto
+                        akan diupload ke Supabase Storage dan URL-nya disimpan
+                        ke kolom image_url.
+                      </p>
+
+                      {form.image_url && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setForm((prev) => ({
+                              ...prev,
+                              image_url: "",
+                            }))
+                          }
+                          className="mt-3 rounded-xl bg-red-50 px-4 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
+                        >
+                          Hapus URL foto dari data
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t bg-white px-6 py-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeModal}
+                disabled={isSaving}
+                className="rounded-2xl border px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Batal
+              </button>
+
+              <button
+                type="button"
+                onClick={saveData}
+                disabled={isSaving}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold !text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {isSaving ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin text-white" />
+                    Menyimpan...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 text-white" />
+                    Simpan Perubahan
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
