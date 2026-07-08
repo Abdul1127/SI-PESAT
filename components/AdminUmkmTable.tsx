@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Edit,
   ExternalLink,
@@ -11,7 +11,6 @@ import {
   Save,
   Search,
   Store,
-  Tags,
   X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
@@ -254,6 +253,9 @@ export default function AdminUmkmTable({
   const [message, setMessage] = useState("");
 
   const tableTopRef = useRef<HTMLDivElement | null>(null);
+  const modalHistoryPushedRef = useRef(false);
+  const ignoreNextPopStateRef = useRef(false);
+
   const itemsPerPage = 10;
 
   const adminStreets = useMemo(() => {
@@ -391,6 +393,74 @@ export default function AdminUmkmTable({
   const startIndex = (safeCurrentPage - 1) * itemsPerPage;
   const currentData = filteredData.slice(startIndex, startIndex + itemsPerPage);
 
+  const forceCloseModal = () => {
+    setIsModalOpen(false);
+    setForm(emptyForm());
+    setSelectedFile(null);
+    setMessage("");
+  };
+
+  const pushModalHistory = () => {
+    if (typeof window === "undefined") return;
+    if (modalHistoryPushedRef.current) return;
+
+    window.history.pushState(
+      { siPesatAdminModal: true },
+      "",
+      window.location.href
+    );
+
+    modalHistoryPushedRef.current = true;
+  };
+
+  const closeModal = () => {
+    if (isSaving) return;
+
+    if (typeof window !== "undefined" && modalHistoryPushedRef.current) {
+      ignoreNextPopStateRef.current = true;
+      modalHistoryPushedRef.current = false;
+      window.history.back();
+    }
+
+    forceCloseModal();
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (ignoreNextPopStateRef.current) {
+        ignoreNextPopStateRef.current = false;
+        return;
+      }
+
+      if (modalHistoryPushedRef.current) {
+        modalHistoryPushedRef.current = false;
+        forceCloseModal();
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeModal();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isModalOpen, isSaving]);
+
   const scrollToTableTop = () => {
     tableTopRef.current?.scrollIntoView({
       behavior: "smooth",
@@ -465,6 +535,7 @@ export default function AdminUmkmTable({
     setForm(emptyForm());
     setSelectedFile(null);
     setMessage("");
+    pushModalHistory();
     setIsModalOpen(true);
   };
 
@@ -488,16 +559,8 @@ export default function AdminUmkmTable({
     });
     setSelectedFile(null);
     setMessage("");
+    pushModalHistory();
     setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    if (isSaving) return;
-
-    setIsModalOpen(false);
-    setForm(emptyForm());
-    setSelectedFile(null);
-    setMessage("");
   };
 
   const uploadImageIfNeeded = async () => {
